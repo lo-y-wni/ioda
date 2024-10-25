@@ -62,6 +62,9 @@ class FunctionsCols : public Functions {
 
   template<typename T> const std::int16_t getSize(const std::shared_ptr<DataBase>&,
                                                   const std::int64_t = 0) const;
+
+
+  template<typename T> std::int8_t hasData(const std::shared_ptr<DataBase>&) const;
 };
 }  // namespace osdf
 

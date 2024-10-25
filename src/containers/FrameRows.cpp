@@ -71,6 +71,10 @@ osdf::FrameRows::FrameRows(const FrameCols& frameCols) :
   }
 }
 
+osdf::FrameRows::~FrameRows() {
+  clear();
+}
+
 /// Interface overrides
 
 void osdf::FrameRows::configColumns(const std::vector<ColumnMetadatum> cols) {
@@ -185,6 +189,7 @@ void osdf::FrameRows::removeColumn(const std::string& name) {
     const std::int8_t permission = data_.getPermission(index);
     if (permission == consts::eReadWrite) {
       data_.removeColumn(index);
+      notify();
     } else {
       oops::Log::error() << "ERROR: Column named \"" << name
                          << "\" is set to read-only." << std::endl;
@@ -201,6 +206,7 @@ void osdf::FrameRows::removeColumn(const std::int32_t index) {
     const std::int8_t permission = data_.getPermission(index);
     if (permission == consts::eReadWrite) {
       data_.removeColumn(index);
+      notify();
     } else {
       oops::Log::error() << "ERROR: Column at index \"" << index
                          << "\" is set to read-only." << std::endl;
@@ -225,6 +231,7 @@ void osdf::FrameRows::removeRow(const std::int64_t index) {
     }
     if (canRemove == true) {
       data_.removeRow(index);
+      notify();
     }
   } else {
     oops::Log::error() << "ERROR: Row index \"" << index
@@ -247,16 +254,17 @@ void osdf::FrameRows::sortRows(const std::string& columnName, const std::int8_t 
     if (canSort == true) {
       const std::int32_t index = data_.getIndex(columnName);
       if (order == consts::eAscending) {
-        funcs_.sortRows(&data_, index, [&](std::shared_ptr<DatumBase>& datumA,
-                                               std::shared_ptr<DatumBase>& datumB) {
+        reorderDataRows(index, [&](std::shared_ptr<DatumBase>& datumA,
+                                   std::shared_ptr<DatumBase>& datumB) {
           return funcs_.compareDatums(datumA, datumB);
         });
       } else if (order == consts::eDescending) {
-        funcs_.sortRows(&data_, index, [&](std::shared_ptr<DatumBase>& datumA,
-                                               std::shared_ptr<DatumBase>& datumB) {
+        reorderDataRows(index, [&](std::shared_ptr<DatumBase>& datumA,
+                                   std::shared_ptr<DatumBase>& datumB) {
           return funcs_.compareDatums(datumB, datumA);
         });
       }
+      notify();
     }
   } else {
     oops::Log::error() << "ERROR: Column named \"" << columnName
@@ -270,6 +278,7 @@ void osdf::FrameRows::print() const {
 
 void osdf::FrameRows::clear() {
   data_.clear();
+  notify();
 }
 
 /// Other public functions
@@ -323,7 +332,27 @@ void osdf::FrameRows::sortRows(const std::string& columnName, const std::functio
       }
     }
     if (canSort == true) {
-      funcs_.sortRows(&data_, columnName, func);
+      // Build list of ordered indices.
+      const std::int32_t index = data_.getIndex(columnName);
+      const std::int64_t sizeRows = data_.getSizeRows();
+      const std::size_t sizeRowsSz = static_cast<std::size_t>(sizeRows);
+      std::vector<std::int64_t> indices(sizeRowsSz, 0);
+      std::iota(std::begin(indices), std::end(indices), 0);   // Initial sequential list of indices.
+      std::sort(std::begin(indices), std::end(indices), [&](const std::int64_t& i,
+                                                            const std::int64_t& j) {
+        std::shared_ptr<DatumBase>& datumA = data_.getDataRow(i).getColumn(index);
+        std::shared_ptr<DatumBase>& datumB = data_.getDataRow(j).getColumn(index);
+        return func(datumA, datumB);
+      });
+      // Swap data values for whole rows - casting makes it look more confusing than it is.
+      for (std::size_t i = 0; i < sizeRowsSz; ++i) {
+        while (indices.at(i) != indices.at(static_cast<std::size_t>(indices.at(i)))) {
+          const std::size_t iIdx = static_cast<std::size_t>(indices.at(i));
+          std::swap(data_.getDataRow(indices.at(i)), data_.getDataRow(indices.at(iIdx)));
+          std::swap(indices.at(i), indices.at(iIdx));
+        }
+      }
+      notify();
     }
   } else {
     oops::Log::error() << "ERROR: Column named \"" << columnName
@@ -347,15 +376,19 @@ osdf::FrameRows osdf::FrameRows::sliceRows(
   return FrameRows(newColumnMetadata, newDataRows);
 }
 
-osdf::ViewRows osdf::FrameRows::makeView() const {
-  std::vector<std::shared_ptr<DataRow>> newDataRows;
-  newDataRows.reserve(static_cast<std::size_t>(data_.getSizeRows()));
-  ColumnMetadata newColumnMetadata = data_.getColumnMetadata();
-  for (const DataRow& dataRow : data_.getDataRows()) {
-    std::shared_ptr<DataRow> dataRowView = std::make_shared<DataRow>(dataRow);
-    newDataRows.push_back(dataRowView);
+osdf::ViewRows osdf::FrameRows::makeView() {
+  return ViewRows(data_.getColumnMetadata(), getViewDataRows(), this);
+}
+
+void osdf::FrameRows::attach(ViewRows* view) {
+  views_.push_back(view);
+}
+
+void osdf::FrameRows::detach(ViewRows* view) {
+  auto it = std::find(views_.begin(), views_.end(), view);
+  if (it != views_.end()) {
+    views_.erase(it);
   }
-  return ViewRows(newColumnMetadata, newDataRows);
 }
 
 const osdf::FrameRowsData& osdf::FrameRows::getData() const {
@@ -364,6 +397,22 @@ const osdf::FrameRowsData& osdf::FrameRows::getData() const {
 
 /// Private functions
 
+void osdf::FrameRows::notify() {
+  for (ViewRows* view : views_) {
+    if (view != nullptr) {
+      view->setUpdatedObjects(data_.getColumnMetadata(), getViewDataRows());
+    }
+  }
+}
+
+std::vector<osdf::DataRow*> osdf::FrameRows::getViewDataRows() {
+  std::vector<DataRow*> newDataRows;
+  newDataRows.reserve(static_cast<std::size_t>(data_.getSizeRows()));
+  for (DataRow& dataRow : data_.getDataRows()) {
+    newDataRows.push_back(&dataRow);
+  }
+  return newDataRows;
+}
 template <typename T>
 void osdf::FrameRows::appendNewColumn(const std::string& name, const std::vector<T>& values,
                                       const std::int8_t type) {
@@ -385,6 +434,7 @@ void osdf::FrameRows::appendNewColumn(const std::string& name, const std::vector
           data_.updateColumnWidth(columnIndex, datumSize);
           rowIndex++;
         }
+        notify();
       } else {
         oops::Log::error() << "ERROR: Number of rows in new column incompatible "
                               "with current data frame." << std::endl;
@@ -404,7 +454,12 @@ void osdf::FrameRows::getColumn(const std::string& name, std::vector<T>& values,
     const std::int32_t columnIndex = data_.getIndex(name);
     const std::int8_t columnType = data_.getType(columnIndex);
     if (type == columnType) {
-      funcs_.getColumn<T>(&data_, columnIndex, values);
+      values.resize(static_cast<std::size_t>(data_.getSizeRows()));
+      for (std::int32_t rowIndex = 0; rowIndex < data_.getSizeRows(); ++rowIndex) {
+        const std::shared_ptr<DatumBase>& datum = data_.getDataRow(rowIndex).getColumn(columnIndex);
+        const T value = funcs_.getDatumValue<T>(datum);
+        values.at(static_cast<std::size_t>(rowIndex)) = value;
+      }
     } else {
       oops::Log::error() << "ERROR: Input vector for column \"" << name
                          << "\" is not the required data type." << std::endl;

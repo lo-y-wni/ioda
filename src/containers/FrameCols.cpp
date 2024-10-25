@@ -43,6 +43,10 @@ osdf::FrameCols::FrameCols(const FrameRows& frameRows) :
   data_.initialise(sizeRows);
 }
 
+osdf::FrameCols::~FrameCols() {
+  clear();
+}
+
 /// Interface overrides
 
 void osdf::FrameCols::configColumns(const std::vector<ColumnMetadatum> cols) {
@@ -157,6 +161,7 @@ void osdf::FrameCols::removeColumn(const std::string& name) {
     const std::int8_t permission = data_.getPermission(index);
     if (permission == consts::eReadWrite) {
       data_.removeColumn(index);
+      notify();
     } else {
       oops::Log::error() << "ERROR: Column named \"" << name
                          << "\" is set to read-only." << std::endl;
@@ -173,6 +178,7 @@ void osdf::FrameCols::removeColumn(const std::int32_t index) {
     const std::int8_t permission = data_.getPermission(index);
     if (permission == consts::eReadWrite) {
       data_.removeColumn(index);
+      notify();
     } else {
       oops::Log::error() << "ERROR: Column at index \"" << index
                          << "\" is set to read-only." << std::endl;
@@ -197,6 +203,7 @@ void osdf::FrameCols::removeRow(const std::int64_t index) {
     }
     if (canRemove == true) {
       data_.removeRow(index);
+      notify();
     }
   } else {
     oops::Log::error() << "ERROR: Row index \"" << index
@@ -302,6 +309,7 @@ void osdf::FrameCols::sortRows(const std::string& columnName, const std::int8_t 
           }
         }
       }
+      notify();
     }
   } else {
     oops::Log::error() << "ERROR: Column named \"" << columnName
@@ -315,50 +323,59 @@ void osdf::FrameCols::print() const {
 
 void osdf::FrameCols::clear() {
   data_.clear();
+  notify();
 }
 
 /// Other public functions
 
 osdf::FrameCols osdf::FrameCols::sliceRows(const std::string& name, const std::int8_t comparison,
-                                           const std::int8_t threshold) {
+                                           const std::int8_t threshold) const {
   return sliceRows<std::int8_t>(name, comparison, threshold);
 }
 
 osdf::FrameCols osdf::FrameCols::sliceRows(const std::string& name, const std::int8_t comparison,
-                                           const std::int16_t threshold) {
+                                           const std::int16_t threshold) const {
   return sliceRows<std::int16_t>(name, comparison, threshold);
 }
 
 osdf::FrameCols osdf::FrameCols::sliceRows(const std::string& name, const std::int8_t comparison,
-                                           const std::int32_t threshold) {
+                                           const std::int32_t threshold) const {
   return sliceRows<std::int32_t>(name, comparison, threshold);
 }
 
 osdf::FrameCols osdf::FrameCols::sliceRows(const std::string& name, const std::int8_t comparison,
-                                           const std::int64_t threshold) {
+                                           const std::int64_t threshold) const {
   return sliceRows<std::int64_t>(name, comparison, threshold);
 }
 
 osdf::FrameCols osdf::FrameCols::sliceRows(const std::string& name, const std::int8_t comparison,
-                                           const float threshold) {
+                                           const float threshold) const {
   return sliceRows<float>(name, comparison, threshold);
 }
 
 osdf::FrameCols osdf::FrameCols::sliceRows(const std::string& name, const std::int8_t comparison,
-                                           const double threshold) {
+                                           const double threshold) const {
   return sliceRows<double>(name, comparison, threshold);
 }
 
 osdf::FrameCols osdf::FrameCols::sliceRows(const std::string& name, const std::int8_t comparison,
-                                           const std::string threshold) {
+                                           const std::string threshold) const {
   return sliceRows<std::string>(name, comparison, threshold);
 }
 
-osdf::ViewCols osdf::FrameCols::makeView() const {
-  const ColumnMetadata& newColumnMetadata = data_.getColumnMetadata();
-  const std::vector<int64_t> newIds = data_.getIds();
-  const std::vector<std::shared_ptr<DataBase>>& newDataCols = data_.getDataCols();
-  return ViewCols(newColumnMetadata, newIds, newDataCols);
+osdf::ViewCols osdf::FrameCols::makeView() {
+  return ViewCols(data_.getColumnMetadata(), data_.getIds(), data_.getDataCols(), this);
+}
+
+void osdf::FrameCols::attach(ViewCols* view) {
+  views_.push_back(view);
+}
+
+void osdf::FrameCols::detach(ViewCols* view) {
+  auto it = std::find(views_.begin(), views_.end(), view);
+  if (it != views_.end()) {
+    views_.erase(it);
+  }
 }
 
 const osdf::FrameColsData& osdf::FrameCols::getData() const {
@@ -366,6 +383,14 @@ const osdf::FrameColsData& osdf::FrameCols::getData() const {
 }
 
 /// Private functions
+
+void osdf::FrameCols::notify() {
+  for (ViewCols* view : views_) {
+    if (view != nullptr) {
+      view->setUpdatedObjects(data_.getColumnMetadata(), data_.getIds(), data_.getDataCols());
+    }
+  }
+}
 
 template <typename T>
 void osdf::FrameCols::appendNewColumn(const std::string& name, const std::vector<T>& values,
@@ -381,6 +406,7 @@ void osdf::FrameCols::appendNewColumn(const std::string& name, const std::vector
         const std::int32_t columnIndex = data_.getSizeCols();
         data_.appendNewColumn(data, name, type);
         data_.updateColumnWidth(columnIndex, funcs_.getSize<T>(data));
+        notify();
       } else {
         oops::Log::error() << "ERROR: Number of rows in new column incompatible "
                               "with current FrameCols." << std::endl;
@@ -445,7 +471,7 @@ void osdf::FrameCols::setColumn(const std::string& name, const std::vector<T>& v
 
 template<typename T>
 osdf::FrameCols osdf::FrameCols::sliceRows(const std::string& name, const std::int8_t comparison,
-                                           const T threshold) {
+                                           const T threshold) const {
   std::vector<std::shared_ptr<DataBase>> newDataColumns;
   std::vector<std::int64_t> newIds;
   ColumnMetadata newColumnMetadata;

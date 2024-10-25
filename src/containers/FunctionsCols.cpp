@@ -352,3 +352,28 @@ template const std::int16_t osdf::FunctionsCols::getSize<double>(
          const std::shared_ptr<DataBase>&, const std::int64_t) const;
 template const std::int16_t osdf::FunctionsCols::getSize<std::string>(
          const std::shared_ptr<DataBase>&, const std::int64_t) const;
+
+template<typename T> std::int8_t osdf::FunctionsCols::hasData(
+                     const std::shared_ptr<DataBase>& data) const {
+  std::shared_ptr<Data<T>> dataType = std::static_pointer_cast<Data<T>>(data);
+  if (dataType->getValues().size() != 0) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+template std::int8_t osdf::FunctionsCols::hasData<std::int8_t>(
+         const std::shared_ptr<DataBase>&) const;
+template std::int8_t osdf::FunctionsCols::hasData<std::int16_t>(
+         const std::shared_ptr<DataBase>&) const;
+template std::int8_t osdf::FunctionsCols::hasData<std::int32_t>(
+         const std::shared_ptr<DataBase>&) const;
+template std::int8_t osdf::FunctionsCols::hasData<std::int64_t>(
+         const std::shared_ptr<DataBase>&) const;
+template std::int8_t osdf::FunctionsCols::hasData<float>(
+         const std::shared_ptr<DataBase>&) const;
+template std::int8_t osdf::FunctionsCols::hasData<double>(
+         const std::shared_ptr<DataBase>&) const;
+template std::int8_t osdf::FunctionsCols::hasData<std::string>(
+         const std::shared_ptr<DataBase>&) const;

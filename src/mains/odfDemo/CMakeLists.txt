@@ -12,3 +12,7 @@ ecbuild_add_executable( TARGET  ioda-odfDemo.x
 ecbuild_add_executable( TARGET  ioda-odfOutputCheck.x
                         SOURCES odfOutputCheck.cpp
                         LIBS    ioda )
+
+ecbuild_add_executable( TARGET  ioda-odfViewTest.x
+                        SOURCES odfViewTest.cpp
+                        LIBS    ioda )

@@ -10,13 +10,18 @@
 #include "oops/util/Logger.h"
 
 #include "ioda/containers/Constants.h"
+#include "ioda/containers/FrameCols.h"
 
+osdf::ViewCols::ViewCols(const ColumnMetadata& columnMetadata, const std::vector<std::int64_t>& ids,
+        const std::vector<std::shared_ptr<DataBase>>& dataCols, FrameCols* parent) :
+    data_(funcs_, columnMetadata, ids, dataCols), parent_(parent) {
+  parent_->attach(this);
+}
 
-osdf::ViewCols::ViewCols(const ColumnMetadata& columnMetadata,
-                         const std::vector<std::int64_t>& ids,
-                         const std::vector<std::shared_ptr<DataBase>>& dataCols) :
-    data_(funcs_, columnMetadata, ids, dataCols) {}
-
+osdf::ViewCols::~ViewCols() {
+  parent_->detach(this);
+  clear();
+}
 
 void osdf::ViewCols::getColumn(const std::string& name, std::vector<std::int8_t>& values) const {
   getColumn<std::int8_t>(name, values, consts::eInt8);
@@ -81,8 +86,15 @@ osdf::ViewCols osdf::ViewCols::sliceRows(const std::string& name, const std::int
   return sliceRows<std::string>(name, comparison, threshold);
 }
 
-void osdf::ViewCols::print() const {
+void osdf::ViewCols::print() {
   data_.print();
+}
+
+void osdf::ViewCols::setUpdatedObjects(const ColumnMetadata& columnMetadata,
+    const std::vector<std::int64_t>& ids, const std::vector<std::shared_ptr<DataBase>>& dataCols) {
+  data_.setColumnMetadata(columnMetadata);
+  data_.setIds(ids);
+  data_.setDataCols(dataCols);
 }
 
 template<typename T>
@@ -117,5 +129,9 @@ osdf::ViewCols osdf::ViewCols::sliceRows(const std::string& name, const std::int
     oops::Log::error() << "ERROR: Column named \"" << name
                        << "\" not found in current data frame." << std::endl;
   }
-  return ViewCols(newColumnMetadata, newIds, newDataColumns);
+  return ViewCols(newColumnMetadata, newIds, newDataColumns, parent_);
+}
+
+void osdf::ViewCols::clear() {
+  data_.clear();
 }

@@ -310,6 +310,7 @@ void osdf::FrameColsData::clear() {
   dataColumns_.clear();
   ids_.clear();
   columnMetadata_.clear();
+  columnMetadata_.resetMaxId();
 }
 
 /// Private functions

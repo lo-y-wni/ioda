@@ -17,6 +17,14 @@ namespace osdf {
 class ColumnMetadata;
 class DataBase;
 
+/// \class IColsData
+/// This pure abstract class is currently used to enable common operations on data in containers to
+/// be handled by a single function. This approach reduces code repetition and enhances
+/// maintainability. By passing pointers to an IColsData class into functions, it doesn't care
+/// about the type or underlying structure of the data and is able to determine what it needs from
+/// the functions this interface implements.
+/// \see FunctionsCols::sliceRows
+
 class IColsData {
  public:
   IColsData() {}

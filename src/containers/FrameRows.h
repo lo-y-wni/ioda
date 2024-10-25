@@ -8,6 +8,7 @@
 #ifndef CONTAINERS_FRAMEROWS_H_
 #define CONTAINERS_FRAMEROWS_H_
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -27,11 +28,28 @@
 namespace osdf {
 class FrameCols;
 
+/// \class FrameRows
+/// \brief One of the four primary classes designed for explicit instantiation, and one of two with
+/// a full read-write interface to the row-priority data model defined by the IFrame pure
+/// abstract class. Use of this interface will allow for polymorphism to be used in code that
+/// implements one of this container. If attached to a pointer to the IFrame base-class, the same
+/// basic interface will be available. The overridden class functions carry out all
+/// required error checking and terminal output, and use the functions classes before carrying out
+/// operations on the data model. The members are classes for the read-write data model and
+/// functions that are specific to operations on row-priority data. The functions class uses a base
+/// class with methods applicable to different container types. Most overridden functions are
+/// documented as part of the IFrame class. Other functions are documented below.
+
 class FrameRows : public IFrame {
  public:
+  /// \brief For initialising an empty container.
   FrameRows();
+  /// \brief For initialising a sliced copy of existing data.
   explicit FrameRows(const ColumnMetadata, const std::vector<DataRow>);
+  /// \brief For initialising a row-priority container from a column-priority container.
   explicit FrameRows(const FrameCols&);
+
+  virtual ~FrameRows();
 
   FrameRows(FrameRows&&)                 = delete;
   FrameRows(const FrameRows&)            = delete;
@@ -68,13 +86,18 @@ class FrameRows : public IFrame {
   void removeColumn(const std::string&) override;
   void removeColumn(const std::int32_t) override;
 
-  void removeRow(const std::int64_t) override;  // Currently removes based on row index, not ID.
+  void removeRow(const std::int64_t) override;
 
   void sortRows(const std::string&, const std::int8_t) override;
 
   void print() const override;
-  void clear() override;
+  void clear();
 
+  /// \brief The following functions return an instance of the derived type for chaining of function
+  /// calls. This is the reason these functions are not part of the IFrame interface.
+  /// \param Target column name.
+  /// \param One of five enum values.
+  /// \param The value to compare against.
   FrameRows sliceRows(const std::string&, const std::int8_t, const std::int8_t) const;
   FrameRows sliceRows(const std::string&, const std::int8_t, const std::int16_t) const;
   FrameRows sliceRows(const std::string&, const std::int8_t, const std::int32_t) const;
@@ -83,15 +106,27 @@ class FrameRows : public IFrame {
   FrameRows sliceRows(const std::string&, const std::int8_t, const double) const;
   FrameRows sliceRows(const std::string&, const std::int8_t, const std::string) const;
 
+  /// \brief Additional to the interface, this function accepts a custom lambda comparator function.
   void sortRows(const std::string&, const std::function<std::int8_t(
                 const std::shared_ptr<DatumBase>, const std::shared_ptr<DatumBase>)>);
 
+  /// \brief Additional to above, this function accepts a custom lambda comparator function.
+  /// \param Lambda function taking a data row and returning an 8-bit signed int used as a boolean.
   FrameRows sliceRows(const std::function<const std::int8_t(const DataRow&)>);
 
-  ViewRows makeView() const;
+  /// \brief Returns an instance of a class with a read-only view of the containing data.
+  ViewRows makeView();
 
+  void attach(ViewRows*);
+  void detach(ViewRows*);
+
+  /// \brief Returns a reference to the data model.
   const FrameRowsData& getData() const;
 
+  /// \brief Variadic function accepts zero or more parameters of any type. Input parameters are
+  /// checked for errors, and added to the data model once a complete and compatible data row has
+  /// been constructed.
+  /// \param Defined by user input - should match existing frame configuration.
   template<typename... T>
   void appendNewRow(T... args) {
     const std::int32_t numParams = sizeof...(T);
@@ -117,6 +152,7 @@ class FrameRows : public IFrame {
                                         columnIndex, std::forward<T>(args)), ...);
           if (typeMatch == true) {
             data_.appendNewRow(newRow);
+            notify();
           } else {
             const std::string name = data_.getName(columnIndex);
             oops::Log::error() << "ERROR: Data type for column \"" << name
@@ -134,16 +170,48 @@ class FrameRows : public IFrame {
   }
 
  private:
+  void notify();
+
+  std::vector<DataRow*> getViewDataRows();
+
+  template <typename F>
+  void reorderDataRows(const std::int32_t columnIndex, const F&& func) {
+    // Build list of ordered indices.
+    const std::int64_t sizeRows = data_.getSizeRows();
+    const std::size_t sizeRowsSz = static_cast<std::size_t>(sizeRows);
+    std::vector<std::int64_t> indices(sizeRowsSz, 0);
+    std::iota(std::begin(indices), std::end(indices), 0);    // Initial sequential list of indices.
+    std::sort(std::begin(indices), std::end(indices), [&](const std::int64_t& i,
+                                                          const std::int64_t& j) {
+      std::shared_ptr<DatumBase>& datumA = data_.getDataRow(i).getColumn(columnIndex);
+      std::shared_ptr<DatumBase>& datumB = data_.getDataRow(j).getColumn(columnIndex);
+      return func(datumA, datumB);
+    });
+    // Reorder data row objects
+    for (std::size_t i = 0; i < sizeRowsSz; ++i) {
+      while (indices.at(i) != indices.at(static_cast<std::size_t>(indices.at(i)))) {
+        const std::size_t iIdx = static_cast<std::size_t>(indices.at(i));
+        std::swap(data_.getDataRow(indices.at(i)), data_.getDataRow(indices.at(iIdx)));
+        std::swap(indices.at(i), indices.at(iIdx));
+      }
+    }
+  }
+
+  /// \brief Templated function called from the overridden interface functions.
   template<typename T> void appendNewColumn(const std::string&, const std::vector<T>&,
                                             const std::int8_t);
+  /// \brief Templated function called from the overridden interface functions.
   template<typename T> void getColumn(const std::string&, std::vector<T>&, const std::int8_t) const;
+  /// \brief Templated function called from the overridden interface functions.
   template<typename T> void setColumn(const std::string&, const std::vector<T>&,
                                       const std::int8_t) const;
-
+  /// \brief Templated function called from the local functions to slice the data container.
   template<typename T> FrameRows sliceRows(const std::string&, const std::int8_t, const T) const;
 
-  FunctionsRows funcs_;
-  FrameRowsData data_;
+  FunctionsRows funcs_;  /// \brief Functions for row-priority containers.
+  FrameRowsData data_;  /// \brief The data model.
+
+  std::vector<ViewRows*> views_;
 };
 }  // namespace osdf
 

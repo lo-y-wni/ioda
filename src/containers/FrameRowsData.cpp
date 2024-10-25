@@ -15,11 +15,11 @@
 #include "ioda/Exception.h"
 
 osdf::FrameRowsData::FrameRowsData(const FunctionsRows& funcs) :
-    IFrameData(), IRowsData(), funcs_(funcs) {}
+    IFrameData(), funcs_(funcs) {}
 
 osdf::FrameRowsData::FrameRowsData(const FunctionsRows& funcs, const ColumnMetadata& columnMetadata,
                                    const std::vector<DataRow>& dataRows) :
-        IFrameData(), IRowsData(), funcs_(funcs),
+        IFrameData(), funcs_(funcs),
         columnMetadata_(columnMetadata), dataRows_(dataRows) {}
 
 void osdf::FrameRowsData::configColumns(const std::vector<ColumnMetadatum> cols) {
@@ -111,6 +111,10 @@ const std::vector<osdf::DataRow>& osdf::FrameRowsData::getDataRows() const {
   return dataRows_;
 }
 
+std::vector<osdf::DataRow>& osdf::FrameRowsData::getDataRows() {
+  return dataRows_;
+}
+
 void osdf::FrameRowsData::initialise(const std::int64_t sizeRows) {
   dataRows_.clear();
   dataRows_.reserve(static_cast<std::size_t>(sizeRows));
@@ -139,4 +143,5 @@ void osdf::FrameRowsData::clear() {
   }
   dataRows_.clear();
   columnMetadata_.clear();
+  columnMetadata_.resetMaxId();
 }

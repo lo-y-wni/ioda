@@ -11,7 +11,7 @@
 
 #include "ioda/containers/Constants.h"
 
-osdf::ViewColsData::ViewColsData(const Functions& funcs,
+osdf::ViewColsData::ViewColsData(const FunctionsCols& funcs,
     const ColumnMetadata& columnMetadata, const std::vector<std::int64_t>& ids,
     const std::vector<std::shared_ptr<DataBase>>& dataColumns) :
     IColsData(), funcs_(funcs), columnMetadata_(columnMetadata),
@@ -62,7 +62,7 @@ const std::vector<std::shared_ptr<osdf::DataBase>>& osdf::ViewColsData::getDataC
   return dataColumns_;
 }
 
-void osdf::ViewColsData::print() const {
+void osdf::ViewColsData::print() {
   if (dataColumns_.size() > 0) {
     const std::string maxRowIdString = std::to_string(columnMetadata_.getMaxId());
     const std::int32_t maxRowIdStringSize = static_cast<std::int32_t>(maxRowIdString.size());
@@ -81,4 +81,23 @@ void osdf::ViewColsData::print() const {
       oops::Log::info() << std::endl;
     }
   }
+}
+
+void osdf::ViewColsData::clear() {
+  dataColumns_.clear();
+  ids_.clear();
+  columnMetadata_.clear();
+  columnMetadata_.resetMaxId();
+}
+
+void osdf::ViewColsData::setColumnMetadata(const ColumnMetadata& columnMetadata) {
+  columnMetadata_ = columnMetadata;
+}
+
+void osdf::ViewColsData::setIds(const std::vector<std::int64_t>& ids) {
+  ids_ = ids;
+}
+
+void osdf::ViewColsData::setDataCols(const std::vector<std::shared_ptr<DataBase>>& dataColumns) {
+  dataColumns_ = dataColumns;
 }
