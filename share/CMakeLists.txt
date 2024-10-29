@@ -61,6 +61,7 @@ set(
   ioda/yaml/iodatest_odb_sonde_write.yaml
   ioda/yaml/iodatest_odb_sonde_write_mixed.yaml
   ioda/yaml/iodatest_odb_ssmis.yaml
+  ioda/yaml/iodatest_odb_stationsnow.yaml
   ioda/yaml/iodatest_odb_surface.yaml
   ioda/yaml/iodatest_odb_surfacecloud.yaml
   ioda/yaml/iodatest_odb_surfacesst.yaml

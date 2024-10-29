@@ -668,7 +668,7 @@ std::vector<int64_t> DataFromSQL::getDates(std::string const& date_col,
 std::vector<std::string> DataFromSQL::getStationIDs() const {
   std::ostringstream stream;
   std::vector<std::string> stationIDs;
-  if (obsgroup_ == obsgroup_sonde) {
+  if (obsgroup_ == obsgroup_sonde || obsgroup_ == obsgroup_stationsnow) {
     const std::vector<std::string> var_statid = getMetadataStringColumn("statid");
     const Eigen::ArrayXi var_wmo_block_number = getMetadataColumnInt("wmo_block_number");
     const Eigen::ArrayXi var_wmo_station_number = getMetadataColumnInt("wmo_station_number");

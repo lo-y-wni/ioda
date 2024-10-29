@@ -58,7 +58,9 @@ namespace ODC {
   static constexpr int obsgroup_sattcwv        = 58;
   static constexpr int obsgroup_hiras          = 60;
   static constexpr int obsgroup_scatwindchosen = 64;
+  static constexpr int obsgroup_stationsnow    = 65;
   static constexpr int obsgroup_mtgirs         = 67;
+
 
   static constexpr int varno_dd                     = 111;
   static constexpr int varno_ff                     = 112;

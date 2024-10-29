@@ -1,0 +1,20 @@
+where:
+  varno: [39,297]
+variables:
+- name: date
+- name: initial_obsvalue
+- name: lat
+- name: lon
+- name: ops_obsgroup
+- name: receipt_date
+- name: receipt_time
+- name: seqno
+- name: stalt
+- name: statid
+- name: state_of_ground
+- name: time
+- name: varno
+- name: vertco_type
+- name: wmo_block_number
+- name: wmo_station_number
+construct station ID: true
