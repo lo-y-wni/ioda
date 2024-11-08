@@ -96,7 +96,7 @@ class ObsDataVector: public ObsSpaceAssociated,
   const oops::ObsVariables & varnames() const {return obsvars_;}
 
   void reduce(const std::vector<bool> & keepLocs) override;
-  void append();
+  void append() override;
   void zeroAppended();
 
  private:
