@@ -110,9 +110,64 @@ Groups:
   - Group: [ "PreQC" ]
     OverrideType: Enum
   - Group: [ "RetrievalData" ]
-  - Group: [ "QCFlags" ]      # UKMO group that may be deprecated later.
   - Group: [ "OneDVar" ]
   - Group: [ "SurfEmiss" ]
+  # Diagnostic flags. Each of these have the base group DiagnosticFlags and a subgroup
+  # corresponding to a specific flag.
+  - Group: [ "DiagnosticFlags/BackgroundCheckPerformed" ]
+    OverrideType: Char
+  - Group: [ "DiagnosticFlags/BackgroundCheckRejection" ]
+    OverrideType: Char
+  - Group: [ "DiagnosticFlags/BuddyCheckRejection" ]
+    OverrideType: Char
+  - Group: [ "DiagnosticFlags/FinalQCRejection" ]
+    OverrideType: Char
+  - Group: [ "DiagnosticFlags/PermanentStationRejection" ]
+    OverrideType: Char
+  - Group: [ "DiagnosticFlags/ValueCorrected" ]
+    OverrideType: Char
+  - Group: [ "DiagnosticFlags/HydrostaticCheckRejection" ]
+    OverrideType: Char
+  - Group: [ "DiagnosticFlags/InterpolationCheckRejection" ]
+    OverrideType: Char
+  - Group: [ "DiagnosticFlags/MaximumWindLevelInAscent" ]
+    OverrideType: Char
+  - Group: [ "DiagnosticFlags/NoPressureSensor" ]
+    OverrideType: Char
+  - Group: [ "DiagnosticFlags/OutsideDomain" ]
+    OverrideType: Char
+  - Group: [ "DiagnosticFlags/PartialLayerUsedInAveraging" ]
+    OverrideType: Char
+  - Group: [ "DiagnosticFlags/StandardLevelInAscent" ]
+    OverrideType: Char
+  - Group: [ "DiagnosticFlags/SignificantTemperatureLevelInAscent" ]
+    OverrideType: Char
+  - Group: [ "DiagnosticFlags/SignificantWindLevelInAscent" ]
+    OverrideType: Char
+  - Group: [ "DiagnosticFlags/SuperadiabatCheckRejection" ]
+    OverrideType: Char
+  - Group: [ "DiagnosticFlags/SurfaceLevelInAscent" ]
+    OverrideType: Char
+  - Group: [ "DiagnosticFlags/ThinningRejection" ]
+    OverrideType: Char
+  - Group: [ "DiagnosticFlags/TrackCheckRejection" ]
+    OverrideType: Char
+  - Group: [ "DiagnosticFlags/TropopauseLevelInAscent" ]
+    OverrideType: Char
+  - Group: [ "DiagnosticFlags/InversionCorrectionPerformed" ]
+    OverrideType: Char
+  - Group: [ "DiagnosticFlags/BestFitPressurePoorlyConstrained" ]
+    OverrideType: Char
+  - Group: [ "DiagnosticFlags/MetarQNHNotRoundedToNearestHPa" ]
+    OverrideType: Char
+  - Group: [ "DiagnosticFlags/PreferredForSurfacePressureCalculation" ]
+    OverrideType: Char
+  - Group: [ "DiagnosticFlags/MeanSeaLevelPressureUsedInSurfacePressureCalculation" ]
+    OverrideType: Char
+  - Group: [ "DiagnosticFlags/StandardPressureUsedInSurfacePressureCalculation" ]
+    OverrideType: Char
+  - Group: [ "DiagnosticFlags/StationPressureUsedInSurfacePressureCalculation" ]
+    OverrideType: Char
   # Deprecated
   - Group: [ "VarMetaData" ]
     Remove: "Variables in this group should be relocated to MetaData."
