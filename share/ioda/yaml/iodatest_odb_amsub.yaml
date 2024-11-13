@@ -1,7 +1,9 @@
 where:
   varno: [119]
+channel indexing:
+  method: sequential
+multichannel varnos: [119]
 variables:
-
 - name: amsub_temp
 - name: azimuth
 - name: initial_obsvalue

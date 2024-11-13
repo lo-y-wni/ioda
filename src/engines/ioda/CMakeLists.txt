@@ -209,11 +209,33 @@ list(APPEND SRCS_ENGINES_ODC
 
 # Source files that should only be built when ODC is enabled
 list(APPEND SRCS_ENGINES_ODC_ODC_DEPENDENT
-	src/ioda/Engines/ODC/DataFromSQL.cpp
-	src/ioda/Engines/ODC/DataFromSQL.h
-	src/ioda/Engines/ODC/OdbQueryParameters.h
-	src/ioda/Engines/ODC/OdbQueryParameters.cpp
-	)
+        include/ioda/Engines/ODC/ChannelIndexer.h
+        include/ioda/Engines/ODC/ChannelIndexerBase.h
+        include/ioda/Engines/ODC/ChannelIndexerFactory.h
+        include/ioda/Engines/ODC/DataFromSQL.h
+        include/ioda/Engines/ODC/ObsGroupTransform.h
+        include/ioda/Engines/ODC/ObsGroupTransformBase.h
+        include/ioda/Engines/ODC/ObsGroupTransformFactory.h
+        include/ioda/Engines/ODC/OdbQueryParameters.h
+        include/ioda/Engines/ODC/RowsIntoLocationsSplitter.h
+        include/ioda/Engines/ODC/RowsIntoLocationsSplitterBase.h
+        include/ioda/Engines/ODC/RowsIntoLocationsSplitterFactory.h
+        include/ioda/Engines/ODC/VariableCreator.h
+        include/ioda/Engines/ODC/VariableReader.h
+        include/ioda/Engines/ODC/VariableReaderBase.h
+        include/ioda/Engines/ODC/VariableReaderFactory.h
+        src/ioda/Engines/ODC/ChannelIndexer.cpp
+        src/ioda/Engines/ODC/ChannelIndexerFactory.cpp
+        src/ioda/Engines/ODC/DataFromSQL.cpp
+        src/ioda/Engines/ODC/ObsGroupTransform.cpp
+        src/ioda/Engines/ODC/ObsGroupTransformFactory.cpp
+        src/ioda/Engines/ODC/OdbQueryParameters.cpp
+        src/ioda/Engines/ODC/RowsIntoLocationsSplitter.cpp
+        src/ioda/Engines/ODC/RowsIntoLocationsSplitterFactory.cpp
+        src/ioda/Engines/ODC/VariableCreator.cpp
+        src/ioda/Engines/ODC/VariableReader.cpp
+        src/ioda/Engines/ODC/VariableReaderFactory.cpp
+        )
 
 list(APPEND SRCS_ENGINES_BUFR
 		include/ioda/Engines/Bufr.h

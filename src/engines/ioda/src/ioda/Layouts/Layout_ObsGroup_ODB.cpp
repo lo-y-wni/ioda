@@ -71,7 +71,8 @@ void DataLayoutPolicy_ObsGroup_ODB::parseMappingFile(const std::string &nameMapF
 void DataLayoutPolicy_ObsGroup_ODB::parseNameChanges(const ODBLayoutParameters &params)
 {
   for (VariableParameters const& variable : params.variables.value()) {
-    addMapping(variable.source, variable.name, variable.unit);
+    if (variable.mode != IoMode::WRITE)
+      addMapping(variable.source, variable.name, variable.unit);
   }
 }
 

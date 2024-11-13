@@ -1,6 +1,7 @@
 #pragma once
 /*
  * (C) Copyright 2021 UCAR
+ * (C) Crown copyright 2021-2024, Met Office
  *
  * This software is licensed under the terms of the Apache Licence Version 2.0
  * which can be obtained at http://www.apache.org/licenses/LICENSE-2.0.
@@ -17,6 +18,7 @@
 #include "../defs.h"
 #include "ObsStore.h"
 #include "../Group.h"
+#include "oops/util/DateTime.h"
 
 namespace ioda {
 class Group;
@@ -57,7 +59,6 @@ struct ODC_Parameters {
   std::string queryFile;
   std::string outputFile;
   std::string odbType;
-  int maxNumberChannels = 0;
   bool ignoreChannelDimensionWrite;
   bool missingObsSpaceVariableAbort;
   util::DateTime timeWindowStart;

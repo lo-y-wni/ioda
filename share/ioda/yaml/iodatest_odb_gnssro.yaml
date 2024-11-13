@@ -1,6 +1,8 @@
 where:
   varno: [162]
   query: mean_frequency = 0
+rows into locations split:
+  method: by seqno, then by the counter of rows with a given varno
 variables:
 - name: confidence
 - name: gen_centre

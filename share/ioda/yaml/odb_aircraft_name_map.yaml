@@ -1,12 +1,30 @@
 varno-independent columns:
+  - name: "MetaData/aircraft_data_relay_system"
+    source: "aircraft_data_relay_system"
+  - name: "MetaData/aircraft_tail_number"
+    source: "aircraft_tail_number"
+  - name: "MetaData/beacon_report_name"
+    source: "beacon_report_name"
+  - name: "MetaData/collection_centre"
+    source: "collection_centre"
+  - name: "MetaData/collection_identifier"
+    source: "collection_identifier"
+  - name: "MetaData/flight_phase"
+    source: "flight_phase"
   - name: "MetaData/latitude"
     source: "lat"
   - name: "MetaData/longitude"
     source: "lon"
+  - name: "MetaData/observationTypeNum"
+    source: ops_obsgroup
   - name: "MetaData/observationSubTypeNum"
     source: "ops_subtype"
   - name: "MetaData/pressure"
     source: "initial_vertco_reference"
+    mode: read
+  - name: "DerivedMetaData/pressure"
+    source: "initial_vertco_reference"
+    mode: write
   - name: "MetaData/sequenceNumber"
     source: "seqno"
   - name: "MetaData/stationElevation"
@@ -27,6 +45,21 @@ varno-dependent columns:
         varno: 112
       - name: "waterVaporMixingRatio"
         varno: 226
+  - source: "obsvalue"
+    group name: "DerivedObsValue"
+    varno-to-variable-name mapping: *obsvalue_varnos
   - source: "obs_error"
-    group name: "ObsError"
+    group name: "EffectiveError"
+    varno-to-variable-name mapping: *obsvalue_varnos
+  - source: "effective_qc"
+    group name: "EffectiveQC"
+    varno-to-variable-name mapping: *obsvalue_varnos
+  - source: "bgvalue"
+    group name: "hofx"
+    varno-to-variable-name mapping: *obsvalue_varnos
+  - source: "obsbias"
+    group name: "ObsBias"
+    varno-to-variable-name mapping: *obsvalue_varnos
+  - source: "pge"
+    group name: "GrossErrorProbability"
     varno-to-variable-name mapping: *obsvalue_varnos

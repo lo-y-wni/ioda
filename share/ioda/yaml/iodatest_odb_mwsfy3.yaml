@@ -1,5 +1,9 @@
 where:
   varno: [274,275]
+channel indexing:
+  method: sequential
+  varnos: [274,275]
+multichannel varnos: [274,275]
 variables:
 - name: geometric_rotational_angle
 - name: initial_obsvalue

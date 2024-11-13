@@ -1,5 +1,9 @@
 where:
   varno: [119]
+channel indexing:
+  method: sequential
+  first channel index: 10
+multichannel varnos: [119]
 variables:
 - name: chan_freq
 - name: initial_obsvalue

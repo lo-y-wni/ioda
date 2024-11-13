@@ -1,6 +1,12 @@
 where:
   varno: [162]
   query: mean_frequency = 0
+rows into locations split:
+  method: by seqno
+  maximum number of channels: 100
+channel indexing:
+  method: sequential
+multichannel varnos: [162]
 variables:
 - name: confidence
 - name: gen_centre
@@ -24,5 +30,5 @@ variables:
 - name: date
 - name: time
 - name: ops_obsgroup
-- name: varno
+# - name: varno  # omitted deliberately to trigger an exception
 - name: seqno

@@ -17,4 +17,9 @@ variables:
 - name: vertco_type
 - name: wmo_block_number
 - name: wmo_station_number
-construct station ID: true
+post-read transforms:
+  - name: create stationIdentification
+    sources:
+    - wmo id:
+        block number: MetaData/wmo_block_number
+        station number: MetaData/wmo_station_number

@@ -39,11 +39,6 @@ class ReadOdbFileParameters : public ReaderParametersBase {
     /// \brief Path to odc query specs
     oops::RequiredParameter<std::string> queryFileName{"query file", this};
 
-    /// Maximum number of channels (levels) allowed in any profile. Used to even
-    /// out profiles which contain a varying number of levels.
-    /// Optional: defaults to zero.
-    oops::Parameter<int> maxNumberChannels{"max number channels", 0, this};
-
     /// \brief Extended lower bound of time window (datetime in ISO-8601 format).
     oops::OptionalParameter<util::DateTime>
       timeWindowExtendedLowerBound{"time window extended lower bound", this};

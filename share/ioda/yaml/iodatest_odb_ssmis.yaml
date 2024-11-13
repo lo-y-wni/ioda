@@ -1,5 +1,8 @@
 where:
   varno: [119]
+channel indexing:
+  method: sequential
+multichannel varnos: [119]
 variables:
 - name: ephemeris_height_1
 - name: ephemeris_height_2

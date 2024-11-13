@@ -1,7 +1,11 @@
 where:
   varno: [2,3,29,59]
+rows into locations split:
+  method: by seqno, then by the counter of rows with a given varno
 variables:
 # mandatory variables
+- name: date
+- name: time
 - name: receipt_date
 - name: receipt_time
 - name: statid

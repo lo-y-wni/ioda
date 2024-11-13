@@ -1,5 +1,9 @@
 where:
   varno: [63,64,65,67,68,69,70,91,266,290,291,292,293,294]
+channel indexing:
+  method: sequential
+  varnos: [266]
+multichannel varnos: [63,64,65,67,68,69,70,91,266,290,291,292,293,294]
 variables:
 - name: buoy_identifier
 - name: ident
@@ -23,3 +27,4 @@ variables:
 - name: ops_obsgroup
 - name: varno
 - name: seqno
+skip variables corresponding to missing varnos: false

@@ -1,5 +1,9 @@
 where:
   varno: [111,112]
+channel indexing:
+  method: sequential
+  varnos: [111]
+multichannel varnos: [111,112]
 variables:
 - name: cellno
 - name: initial_obsvalue

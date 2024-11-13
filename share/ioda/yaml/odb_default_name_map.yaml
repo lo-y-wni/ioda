@@ -509,6 +509,7 @@ varno-independent columns:
     source: "initial_level_time"
   - name: "MetaData/initial_vertco_reference"
     source: "initial_vertco_reference"
+    mode: write
   - name: "MetaData/backscatterDistance1"
     source: "invresid_1"
   - name: "MetaData/backscatterDistance2"
@@ -784,11 +785,15 @@ varno-independent columns:
 # Added specifically for ODB write
   - name: "MetaData/pressure"
     source: "initial_vertco_reference"
+    mode: write
   - name: "MetaData/height"
     source: "height"
   - name: "OneDVar/emissivity"
     source: "emissivity_onedvar"
-    varno number with the same dimension: 119
+    multichannel: true
+    reader:
+      type: from rows with matching varnos
+      varnos: [119]
   - name: "OneDVar/skinTemperature"
     source: "skint_onedvar"
   - name: "NewMetaData/sensorCentralWavenumber"
@@ -909,8 +914,7 @@ varno-dependent columns:
         varno: 273
       - name: "brightnessTemperature"
         varno: 274
-      - name: "brightnessTemperature_mwhs"
-        varno: 275
+        auxiliary varnos: [275]
       - name: "chlorophyllMassConcentration"
         varno: 288
       - name: "kd490"

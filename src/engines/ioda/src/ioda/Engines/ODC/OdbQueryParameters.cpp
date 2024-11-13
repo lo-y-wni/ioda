@@ -11,7 +11,7 @@
  * \brief ODB / ODC engine bindings
  */
 
-#include "./OdbQueryParameters.h"
+#include "ioda/Engines/ODC/OdbQueryParameters.h"
 
 #include <utility>
 
@@ -21,6 +21,16 @@ namespace ODC {
 
 constexpr char StarParameterTraitsHelper::enumTypeName[];
 constexpr util::NamedEnumerator<StarParameter> StarParameterTraitsHelper::namedValues[];
+
+void OdbVariableCreationParameters::deserialize(util::CompositePath &path,
+                                                const eckit::Configuration &config) {
+  Parameters::deserialize(path, config);
+
+  if (!multichannelVarnos.value().empty() && channelIndexing.value() == boost::none)
+    throw eckit::UserError(path.path() +
+                           ": if the 'multichannel varnos' list is non-empty, "
+                           "the 'channel indexing' option must be set");
+}
 
 }  // namespace ODC
 }  // namespace Engines

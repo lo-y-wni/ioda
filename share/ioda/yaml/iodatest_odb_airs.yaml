@@ -1,5 +1,8 @@
 where:
   varno: [119,233]
+channel indexing:
+  method: read from first location
+multichannel varnos: [119,233]
 variables:
 - name: amsua_zenith
 - name: azimuth

@@ -1,5 +1,7 @@
 where:
   varno: [2]
+rows into locations split:
+  method: by seqno, then by the counter of rows with a given varno
 variables:
 - name: initial_obsvalue
 - name: lat
@@ -13,4 +15,9 @@ variables:
 - name: ops_obsgroup
 - name: varno
 - name: seqno
-construct station ID: true
+post-read transforms:
+  - name: create stationIdentification
+    sources:
+    - wmo id:
+        block number: MetaData/wmo_block_number
+        station number: MetaData/wmo_station_number

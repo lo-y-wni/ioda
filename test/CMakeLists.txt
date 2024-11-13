@@ -197,6 +197,15 @@ list( APPEND ioda_test_input
   testinput/iodatest_extendedobsspace.yaml
   testinput/iodatest_extendedobsspace_halo.yaml
   testinput/iodatest_odb_surface_with_query.yaml
+  testinput/iodatest_odb_abiclr_sequential_channel_indexer_but_missing_varno.yaml
+  testinput/iodatest_odb_airs_channel_index_reader_from_1st_loc_but_missing_varno.yaml
+  testinput/iodatest_odb_airs_channel_index_reader_from_missing_column.yaml
+  testinput/iodatest_odb_airs_split_by_seqno_but_missing_seqno.yaml
+  testinput/iodatest_odb_geocloud_constant_channel_indexer_but_missing_varno.yaml
+  testinput/iodatest_odb_gnssro_split_by_seqno_with_max_num_channels_but_missing_varno.yaml
+  testinput/iodatest_odb_sonde_keep_only_reported_levels_but_missing_numlev.yaml
+  testinput/iodatest_odb_sonde_split_by_seqno_then_counter_of_rows_with_varno_but_missing_seqno.yaml
+  testinput/iodatest_odb_sonde_split_by_seqno_then_counter_of_rows_with_varno_but_missing_varno.yaml
   testinput/iodatest_sort.yaml
   testinput/iodatest_writer_sondes.yaml
   testinput/iodatest_writer_scatwindchosen.yaml
@@ -2386,7 +2395,7 @@ if (odc_FOUND)
                             "${CMAKE_BINARY_DIR}/bin/ioda-odc-converter.x
                             AMSR
                             Data/testinput_tier_1/amsr.odb
-                            ../share/test/testinput/odb_default_name_map.yaml ../share/test/testinput/iodatest_odb_amsr.yaml"
+                            ../share/test/testinput/odb_amsr_name_map.yaml ../share/test/testinput/iodatest_odb_amsr.yaml"
                             test-AMSR.hdf
                     TEST_DEPENDS get_ioda_test_data )
 
@@ -2507,16 +2516,28 @@ if (odc_FOUND)
                             test-GNSSRO.hdf
                     TEST_DEPENDS get_ioda_test_data )
 
-  ecbuild_add_test( TARGET  test_ioda-convert_gnssro_profile_odc
+  ecbuild_add_test( TARGET  test_ioda-convert_gnssro_profile_333_odc
                     TYPE    SCRIPT
                     COMMAND bash
                     ARGS    ${CMAKE_BINARY_DIR}/bin/ioda_compare.sh
                             hdf5
                             "${CMAKE_BINARY_DIR}/bin/ioda-odc-converter.x
-                            GNSSRO-profile
+                            GNSSRO-profile-333
                             Data/testinput_tier_1/gnssro.odb
-                            ../share/test/testinput/odb_gnssro_profile_name_map.yaml ../share/test/testinput/iodatest_odb_gnssro_profile.yaml 333"
-                            test-GNSSRO-profile.hdf
+                            ../share/test/testinput/odb_gnssro_profile_name_map.yaml ../share/test/testinput/iodatest_odb_gnssro_profile_333.yaml"
+                            test-GNSSRO-profile-333.hdf
+                    TEST_DEPENDS get_ioda_test_data )
+
+  ecbuild_add_test( TARGET  test_ioda-convert_gnssro_profile_100_odc
+                    TYPE    SCRIPT
+                    COMMAND bash
+                    ARGS    ${CMAKE_BINARY_DIR}/bin/ioda_compare.sh
+                            hdf5
+                            "${CMAKE_BINARY_DIR}/bin/ioda-odc-converter.x
+                            GNSSRO-profile-100
+                            Data/testinput_tier_1/gnssro.odb
+                            ../share/test/testinput/odb_gnssro_profile_name_map.yaml ../share/test/testinput/iodatest_odb_gnssro_profile_100.yaml"
+                            test-GNSSRO-profile-100.hdf
                     TEST_DEPENDS get_ioda_test_data )
 
   ecbuild_add_test( TARGET  test_ioda-convert_groundgps_odc
@@ -2831,6 +2852,116 @@ if (odc_FOUND)
                             test-OceanSound-truncate-profiles.hdf
                     TEST_DEPENDS get_ioda_test_data )
 
+  # The following tests verify that the correct exceptions are thrown when certain ODB columns are not present 
+  # in the query (and presumably the same would happen if they weren't present in the input ODB file).
+                    
+  ecbuild_add_test( TARGET  test_ioda-convert_abiclr_sequential_channel_indexer_but_missing_varno_odc
+                    COMMAND ${CMAKE_BINARY_DIR}/bin/ioda-odc-converter.x
+                    ARGS    ABIClr
+                            Data/testinput_tier_1/abiclr.odb
+                            ../share/test/testinput/odb_default_name_map.yaml 
+                            testinput/iodatest_odb_abiclr_sequential_channel_indexer_but_missing_varno.yaml
+                    TEST_DEPENDS get_ioda_test_data )
+  set_tests_properties(test_ioda-convert_abiclr_sequential_channel_indexer_but_missing_varno_odc
+                       PROPERTIES
+                       PASS_REGULAR_EXPRESSION ".*'varno' column not found.*")                    
+                    
+  ecbuild_add_test( TARGET  test_ioda-convert_airs_channel_index_reader_from_1st_loc_but_missing_varno_odc
+                    TYPE    SCRIPT
+                    COMMAND ${CMAKE_BINARY_DIR}/bin/ioda-odc-converter.x
+                    ARGS    AIRS_exception1
+                            Data/testinput_tier_1/airs.odb
+                            ../share/test/testinput/odb_radiance_name_map.yaml 
+                            testinput/iodatest_odb_airs_channel_index_reader_from_1st_loc_but_missing_varno.yaml
+                    TEST_DEPENDS get_ioda_test_data )
+  set_tests_properties(test_ioda-convert_airs_channel_index_reader_from_1st_loc_but_missing_varno_odc
+                       PROPERTIES
+                       PASS_REGULAR_EXPRESSION ".*'varno' column not found.*")                    
+                    
+  ecbuild_add_test( TARGET  test_ioda-convert_airs_channel_index_reader_from_missing_column_odc
+                    TYPE    SCRIPT
+                    COMMAND ${CMAKE_BINARY_DIR}/bin/ioda-odc-converter.x
+                    ARGS    AIRS_exception2
+                            Data/testinput_tier_1/airs.odb
+                            ../share/test/testinput/odb_radiance_name_map.yaml 
+                            testinput/iodatest_odb_airs_channel_index_reader_from_missing_column.yaml
+                    TEST_DEPENDS get_ioda_test_data )
+  set_tests_properties(test_ioda-convert_airs_channel_index_reader_from_missing_column_odc
+                       PROPERTIES
+                       PASS_REGULAR_EXPRESSION ".*'nonexisting_column' column, expected to contain channel indices, not found.*")                    
+                    
+  ecbuild_add_test( TARGET  test_ioda-convert_airs_split_by_seqno_but_missing_seqno_odc
+                    TYPE    SCRIPT
+                    COMMAND ${CMAKE_BINARY_DIR}/bin/ioda-odc-converter.x
+                    ARGS    AIRS_exception3
+                            Data/testinput_tier_1/airs.odb
+                            ../share/test/testinput/odb_radiance_name_map.yaml 
+                            testinput/iodatest_odb_airs_split_by_seqno_but_missing_seqno.yaml
+                    TEST_DEPENDS get_ioda_test_data )
+  set_tests_properties(test_ioda-convert_airs_split_by_seqno_but_missing_seqno_odc
+                       PROPERTIES
+                       PASS_REGULAR_EXPRESSION ".*'seqno' column not found.*")                    
+                    
+  ecbuild_add_test( TARGET  test_ioda-convert_geocloud_constant_channel_indexer_but_missing_varno_odc
+                    TYPE    SCRIPT
+                    COMMAND ${CMAKE_BINARY_DIR}/bin/ioda-odc-converter.x
+                    ARGS    GeoCloud_exception1
+                            Data/testinput_tier_1/geocloud.odb
+                            ../share/test/testinput/odb_default_name_map.yaml
+                            testinput/iodatest_odb_geocloud_constant_channel_indexer_but_missing_varno.yaml
+                    TEST_DEPENDS get_ioda_test_data )
+  set_tests_properties(test_ioda-convert_geocloud_constant_channel_indexer_but_missing_varno_odc
+                       PROPERTIES
+                       PASS_REGULAR_EXPRESSION ".*'varno' column not found.*")                    
+                     
+  ecbuild_add_test( TARGET  test_ioda-convert_gnssro_split_by_seqno_with_max_num_channels_but_missing_varno_odc
+                    TYPE    SCRIPT
+                    COMMAND ${CMAKE_BINARY_DIR}/bin/ioda-odc-converter.x
+                    ARGS    GNSSRO_exception1
+                            Data/testinput_tier_1/gnssro.odb
+                            ../share/test/testinput/odb_gnssro_name_map.yaml
+                            testinput/iodatest_odb_gnssro_split_by_seqno_with_max_num_channels_but_missing_varno.yaml
+                    TEST_DEPENDS get_ioda_test_data )
+  set_tests_properties(test_ioda-convert_gnssro_split_by_seqno_with_max_num_channels_but_missing_varno_odc
+                       PROPERTIES
+                       PASS_REGULAR_EXPRESSION ".*'varno' column not found.*")                    
+
+  ecbuild_add_test( TARGET  test_ioda-convert_sonde_keep_only_reported_levels_but_missing_numlev_odc
+                    TYPE    SCRIPT
+                    COMMAND ${CMAKE_BINARY_DIR}/bin/ioda-odc-converter.x
+                    ARGS    Sonde_exception1
+                            Data/testinput_tier_1/sonde.odb
+                            ../share/test/testinput/odb_sonde_name_map.yaml 
+                            testinput/iodatest_odb_sonde_keep_only_reported_levels_but_missing_numlev.yaml
+                    TEST_DEPENDS get_ioda_test_data )                    
+  set_tests_properties(test_ioda-convert_sonde_keep_only_reported_levels_but_missing_numlev_odc
+                       PROPERTIES
+                       PASS_REGULAR_EXPRESSION ".*'numlev' column not found.*")                    
+                    
+  ecbuild_add_test( TARGET  test_ioda-convert_sonde_split_by_seqno_then_counter_of_rows_with_varno_but_missing_seqno_odc
+                    TYPE    SCRIPT
+                    COMMAND ${CMAKE_BINARY_DIR}/bin/ioda-odc-converter.x
+                    ARGS    Sonde_exception2
+                            Data/testinput_tier_1/sonde.odb
+                            ../share/test/testinput/odb_sonde_name_map.yaml 
+                            testinput/iodatest_odb_sonde_split_by_seqno_then_counter_of_rows_with_varno_but_missing_seqno.yaml
+                    TEST_DEPENDS get_ioda_test_data )                    
+  set_tests_properties(test_ioda-convert_sonde_split_by_seqno_then_counter_of_rows_with_varno_but_missing_seqno_odc
+                       PROPERTIES
+                       PASS_REGULAR_EXPRESSION ".*'seqno' column not found.*")                    
+                    
+  ecbuild_add_test( TARGET  test_ioda-convert_sonde_split_by_seqno_then_counter_of_rows_with_varno_but_missing_varno_odc
+                    TYPE    SCRIPT
+                    COMMAND ${CMAKE_BINARY_DIR}/bin/ioda-odc-converter.x
+                    ARGS    Sonde_exception3
+                            Data/testinput_tier_1/sonde.odb
+                            ../share/test/testinput/odb_sonde_name_map.yaml 
+                            testinput/iodatest_odb_sonde_split_by_seqno_then_counter_of_rows_with_varno_but_missing_varno.yaml
+                    TEST_DEPENDS get_ioda_test_data )                    
+  set_tests_properties(test_ioda-convert_sonde_split_by_seqno_then_counter_of_rows_with_varno_but_missing_varno_odc
+                       PROPERTIES
+                       PASS_REGULAR_EXPRESSION ".*'varno' column not found.*")                    
+                    
   add_test_checking_odb_to_netcdf_conversion_results_against_odb_sql_queries(
     TEST_NAME varno_independent_column
     ODB_FILE  sonde.odb )

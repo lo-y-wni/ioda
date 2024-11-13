@@ -1,5 +1,8 @@
 where:
   varno: [233,238]
+channel indexing:
+  method: read from first location
+multichannel varnos: [233,238]
 variables:
 - name: azimuth
 - name: field_of_regard

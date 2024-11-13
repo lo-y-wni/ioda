@@ -1,5 +1,6 @@
 /*
  * (C) Copyright 2020-2021 UCAR
+ * (C) Crown copyright 2021-2024, Met Office
  *
  * This software is licensed under the terms of the Apache Licence Version 2.0
  * which can be obtained at http://www.apache.org/licenses/LICENSE-2.0.
@@ -25,14 +26,15 @@
 #define REGEX_NAMESPACE std
 #endif
 
-#include "DataFromSQL.h"
-
 #include "eckit/io/MemoryHandle.h"
+#include "eckit/utils/StringTools.h"
 #include "ioda/Engines/ODC.h"
 #include "ioda/Exception.h"
 #include "ioda/Group.h"
+#include "ioda/ObsGroup.h"
 #include "ioda/config.h"  // Auto-generated. Defines *_FOUND.
 #include "ioda/Types/Type.h"
+#include "oops/util/AssociativeContainers.h"
 #include "oops/util/Logger.h"
 
 #if odc_FOUND
@@ -41,8 +43,13 @@
 # include "eckit/filesystem/PathName.h"
 # include "odc/api/odc.h"
 # include "odc/Writer.h"
-# include "./DataFromSQL.h"
-# include "./OdbQueryParameters.h"
+# include "ioda/Engines/ODC/DataFromSQL.h"
+# include "ioda/Engines/ODC/OdbQueryParameters.h"
+# include "ioda/Engines/ODC/ChannelIndexerFactory.h"
+# include "ioda/Engines/ODC/ObsGroupTransformFactory.h"
+# include "ioda/Engines/ODC/RowsIntoLocationsSplitterFactory.h"
+# include "ioda/Engines/ODC/VariableCreator.h"
+# include "ioda/Engines/ODC/VariableReaderFactory.h"
 # include "../../Layouts/Layout_ObsGroup_ODB_Params.h"
 #endif
 
@@ -56,48 +63,23 @@ namespace {
 // Initialization
 
 #if odc_FOUND
-#else
-/// @brief Standard message when the ODC API is unavailable.
-const char odcMissingMessage[] {
-  "The ODB / ODC engine is disabled. Either odc, eckit, or oops were "
-  "not found at compile time."};
-#endif
-
 /// @brief Function initializes the ODC API, just once.
 void initODC() {
   static bool inited = false;
   if (!inited) {
-#if odc_FOUND
     odc_initialise_api();
-#else
-    throw Exception(odcMissingMessage, ioda_Here());
-#endif
     inited = true;
   }
 }
+#else
+/// @brief Standard message when the ODC API is unavailable.
+const char odcMissingMessage[] {
+  "The ODB / ODC engine is disabled because the odc library was "
+  "not found at compile time."};
+#endif
+
 
 #if odc_FOUND
-
-// -------------------------------------------------------------------------------------------------
-
-/// Convert an epoch to a util::DateTime
-// todo: keep unified with the version in IodaUtils.cc
-util::DateTime getEpochAsDtime(const Variable & dtVar) {
-  // get the units attribute and strip off the "seconds since " part. For now,
-  // we are restricting the units to "seconds since " and will be expanding that
-  // in the future to other time units (hours, days, minutes, etc).
-  std::string epochString = dtVar.atts.open("units").read<std::string>();
-  std::size_t pos = epochString.find("seconds since ");
-  if (pos == std::string::npos) {
-    std::string errorMsg =
-        std::string("For now, only supporting 'seconds since' form of ") +
-        std::string("units for MetaData/dateTime variable");
-    Exception(errorMsg.c_str(), ioda_Here());
-  }
-  epochString.replace(pos, pos+14, "");
-
-  return util::DateTime(epochString);
-}
 
 // -------------------------------------------------------------------------------------------------
 // (Very simple) SQL expression parsing
@@ -127,6 +109,10 @@ struct ParsedColumnExpression {
   std::string column;  //< Column name (possibly including table name) or a more general expression
   std::string member;  //< Bitfield member name (may be empty)
 };
+
+bool operator<(const ParsedColumnExpression & a, const ParsedColumnExpression &b) {
+  return a.column < b.column || (a.column == b.column && a.member < b.member);
+}
 
 // -------------------------------------------------------------------------------------------------
 // Query file parsing
@@ -220,191 +206,291 @@ void addQueryColumns(ColumnSelection &selection, const OdbQueryParameters &query
 }
 
 // -------------------------------------------------------------------------------------------------
-// Mapping file parsing
+// Functions used by the ODB file reader.
 
-/// A column not treated as a bitfield. (If may technically be a bitfield column, but if so, it is
-/// to be treated as a normal int column.)
-class NonbitfieldColumnMapping {
-public:
-  NonbitfieldColumnMapping() = default;
+/// \brief Creates dimension scales for the ObsGroup that will receive data loaded from an ODB file.
+NewDimensionScales_t makeDimensionScales(const RowsByLocation &rowsByLocation,
+                                         const ChannelIndexerBase *channelIndexer,
+                                         const DataFromSQL &sqlData) {
+  NewDimensionScales_t scales;
 
-  void markAsVarnoIndependent() { varnoIndependent_ = true; }
+  const int numLocations = rowsByLocation.size();
+  scales.push_back(
+    NewDimensionScale<int>("Location", numLocations, numLocations, numLocations));
 
-  void dimensionOfVarno(int varno) { dimensionOfVarno_ = varno; }
-
-  void addVarno(int varno) {
-    varnos_.insert(varno);
+  if (channelIndexer) {
+    const std::vector<int> channelIndices = channelIndexer->channelIndices(rowsByLocation, sqlData);
+    const int numChannels = channelIndices.size();
+    scales.push_back(
+      NewDimensionScale<int>("Channel", numChannels, numChannels, numChannels));
   }
 
-  void checkConsistency(const std::string &column) const {
-    if (varnoIndependent_ && !varnos_.empty())
-      throw eckit::UserError("Column '" + column +
-                             "' is declared both as varno-independent and varno-dependent",
-                             Here());
-  }
+  return scales;
+}
 
-  void createIodaVariables(const DataFromSQL &sqlData,
-                           const std::string &column,
-                           const std::vector<int> &varnoSelection,
-                           const VariableCreationParameters &creationParams,
-                           ObsGroup &og) const {
-    if (varnoIndependent_) {
-      if (dimensionOfVarno_ == 0) {
-        sqlData.createVarnoIndependentIodaVariable(column, og, creationParams);
-      } else {
-        sqlData.createVarnoDependentIodaVariable(column, dimensionOfVarno_, og,
-                                                 creationParams, column);
-      }
-    } else {
-      for (int varno : varnoSelection) {
-        if (varnos_.count(varno)) {
-          if (sqlData.getObsgroup() == obsgroup_amsr && varno != varno_rawbt)
-            continue;
-          if (sqlData.getObsgroup() == obsgroup_mwsfy3 && varno != varno_rawbt_mwts)
-            continue;
-          sqlData.createVarnoDependentIodaVariable(column, varno, og, creationParams);
-        }
-      }
-    }
-  }
+/// \brief Creates the Channel variable, the sole ioda variable without a Location dimension.
+void createChannelVariable(ObsGroup &og, const ChannelIndexerBase &channelIndexer,
+                           const RowsByLocation &rowsByLocation, const DataFromSQL &sqlData) {
+  const std::vector<int> channelIndices = channelIndexer.channelIndices(rowsByLocation, sqlData);
+  ioda::Variable v = og.vars["Channel"];
+  v.write(channelIndices);
+}
 
- private:
-  /// If true, the column is treated as varno-independent and mapped to a single ioda variable.
-  /// Otherwise the restriction of the column to each of the varnos `varnos_` is mapped to a
-  /// separate ioda variable.
-  bool varnoIndependent_ = false;
-  int dimensionOfVarno_ = 0;
-  std::set<int> varnos_;
-};
+template <typename T>
+bool contains(const std::vector<T> &vector, const T& element) {
+  return std::find(vector.begin(), vector.end(), element) != vector.end();
+}
 
-/// A column treated as a bitfield.
-class BitfieldColumnMapping {
- public:
-  BitfieldColumnMapping() = default;
+template <typename T>
+bool containsAny(const std::vector<T> &vector, const std::vector<T>& elements) {
+  return std::any_of(elements.begin(), elements.end(),
+                     [&vector] (const T &element) { return contains(vector, element); });
+}
 
-  void addVarnoIndependentMember(const std::string &member) {
-    varnoIndependentMembers_.insert(member);
-  }
+bool isSourceInQuery(const ParsedColumnExpression &source,
+                     const std::set<ParsedColumnExpression> &queryContents) {
+  if (source.member.empty())
+    return oops::contains(queryContents, source);
+  else
+    return oops::contains(queryContents, source) ||
+           oops::contains(queryContents, ParsedColumnExpression(source.column));
+}
 
-  void addVarnoDependentMember(int varno, const std::string &member) {
-    varnoDependentMembers_[varno].insert(member);
-  }
+/// \brief Constructs and returns a vector of objects that will be used to create location-dependent
+/// ioda variables holding data loaded from an ODB file.
+std::vector<VariableCreator> makeVariableCreators(
+    const detail::ODBLayoutParameters &layoutParams,
+    const OdbQueryParameters &queryParams,
+    const std::vector<int> &availableVarnos) {
+  std::vector<VariableCreator> variableCreators;
 
-  void checkConsistency(const std::string &column) const {
-    for (const auto &varnoAndMembers : varnoDependentMembers_)
-      for (const std::string &member : varnoAndMembers.second)
-        if (varnoIndependentMembers_.count(member))
-          throw eckit::UserError("Bitfield column member '" + column + "." + member +
-                                 "' is declared both as varno-independent and varno-dependent",
-                                 Here());
-  }
+  std::set<ParsedColumnExpression> queryContents;
+  for (const auto &columns : queryParams.variables.value())
+    queryContents.insert(ParsedColumnExpression(columns.name));
 
-  void createIodaVariables(const DataFromSQL &sqlData,
-                           const std::string &columnName,
-                           const MemberSelection &memberSelection,
-                           const std::vector<int> &varnoSelection,
-                           const VariableCreationParameters &creationParams,
-                           ObsGroup &og) const {
-    if (!varnoIndependentMembers_.empty()) {
-      const std::set<std::string> members =
-          memberSelection.intersectionWith(varnoIndependentMembers_);
-      sqlData.createVarnoIndependentIodaVariables(
-            columnName, members, og, creationParams);
-    }
-    if (!varnoDependentMembers_.empty()) {
-      for (int varno : varnoSelection) {
-        const auto membersIt = varnoDependentMembers_.find(varno);
-        if (membersIt != varnoDependentMembers_.end()) {
-          if (sqlData.getObsgroup() == obsgroup_amsr && varno != varno_rawbt)
-            continue;
-          if (sqlData.getObsgroup() == obsgroup_mwsfy3 && varno != varno_rawbt_mwts)
-            continue;
-          const std::set<std::string> members =
-              memberSelection.intersectionWith(membersIt->second);
-          sqlData.createVarnoDependentIodaVariables(
-                columnName, members, varno, og, creationParams);
-        }
-      }
-    }
-  }
+  const OdbVariableCreationParameters &varCreationParams = queryParams.variableCreation;
 
- private:
-  /// Varno-independent bitfield members (each mapped to a single ioda variable)
-  std::set<std::string> varnoIndependentMembers_;
-  /// Maps varnos to sets of bitfield members whose restrictions to those varnos are mapped to
-  /// separate ioda variables.
-  std::map<int, std::set<std::string>> varnoDependentMembers_;
-};
-
-/// This object
-/// * lists columns and bitfield column members for which a mapping to ioda variables has
-///   been defined in a mapping file,
-/// * indicates which of them should be treated as varno-dependent, and
-/// * lists the varnos for which a mapping of each varno-dependent column or column member has
-///   been defined.
-struct ColumnMappings {
-  std::map<std::string, NonbitfieldColumnMapping> nonbitfieldColumns;
-  std::map<std::string, BitfieldColumnMapping> bitfieldColumns;
-};
-
-/// Parse the mapping file and return an object
-/// * listing columns and bitfield column members for which a mapping to ioda variables has
-///   been defined,
-/// * indicating which of them should be treated as varno-dependent, and
-/// * listing the varnos for which a mapping of each varno-dependent column or column member has
-///   been defined.
-ColumnMappings collectColumnMappings(const detail::ODBLayoutParameters &layoutParams) {
-  ColumnMappings mappings;
-
-  // Process varno-independent columns
+  // Handle varno-independent columns
   for (const detail::VariableParameters &columnParams : layoutParams.variables.value()) {
-    ParsedColumnExpression parsedSource(columnParams.source);
-    if (parsedSource.member.empty()) {
-      mappings.nonbitfieldColumns[parsedSource.column].markAsVarnoIndependent();
-      if (columnParams.varnoWithSameDimensionAsVariable.value().has_value())
-        mappings.nonbitfieldColumns[parsedSource.column].dimensionOfVarno(
-                    columnParams.varnoWithSameDimensionAsVariable.value().get());
-    } else {
-      mappings.bitfieldColumns[parsedSource.column].addVarnoIndependentMember(parsedSource.member);
+    // Skip columns meant to be written, but not read.
+    if (columnParams.mode.value() == detail::IoMode::WRITE) {
+      continue;
     }
+
+    // Skip sources absent from the query.
+    ParsedColumnExpression parsedSource(columnParams.source);
+    if (!isSourceInQuery(parsedSource, queryContents))
+      continue;
+
+    const VariableReaderParametersBase *readerParams = nullptr;
+    if (columnParams.reader.value() != boost::none)
+      readerParams = &columnParams.reader.value()->params.value();
+    else
+      readerParams = &varCreationParams.defaultReader.value().params.value();
+
+    VariableCreator creator(columnParams.name,
+                            parsedSource.column,
+                            parsedSource.member,
+                            columnParams.multichannel,
+                            *readerParams);
+    variableCreators.push_back(std::move(creator));
   }
 
-  // Process varno-dependent columns
+  const std::set<int> multichannelVarnos(varCreationParams.multichannelVarnos.value().begin(),
+                                         varCreationParams.multichannelVarnos.value().end());
+  // TODO(someone): Handle the case of the 'varno' option being set to ALL.
+  const std::vector<int> &queriedVarnos =
+      queryParams.where.value().varno.value().as<std::vector<int>>();
+
+  // Handle varno-dependent columns
   for (const detail::VarnoDependentColumnParameters &columnParams :
        layoutParams.varnoDependentColumns.value()) {
     ParsedColumnExpression parsedSource(columnParams.source);
-    if (parsedSource.member.empty()) {
-      NonbitfieldColumnMapping &mapping = mappings.nonbitfieldColumns[parsedSource.column];
-      for (const auto &mappingParams : columnParams.mappings.value()) {
-        mapping.addVarno(mappingParams.varno);
+    for (const detail::VarnoToVariableNameMappingParameters &mappingParams :
+         columnParams.mappings.value()) {
+      // Skip sources absent from the query.
+      if (!isSourceInQuery(parsedSource, queryContents))
+        continue;
+
+      // Skip varnos absent from the query.
+      if (!contains(queriedVarnos, mappingParams.varno.value()) &&
+          !containsAny(queriedVarnos, mappingParams.auxiliaryVarnos.value()))
+        continue;
+
+      if (varCreationParams.skipMissingVarnos.value()) {
+        // Skip varnos absent from the input ODB file.
+        if (!contains(availableVarnos, mappingParams.varno.value()) &&
+            !containsAny(availableVarnos, mappingParams.auxiliaryVarnos.value()))
+          continue;
       }
-    } else {
-      BitfieldColumnMapping &mapping = mappings.bitfieldColumns[parsedSource.column];
-      for (const auto &mappingParams : columnParams.mappings.value()) {
-        mapping.addVarnoDependentMember(mappingParams.varno, parsedSource.member);
-      }
+
+      std::string variableName;
+      if (parsedSource.member.empty())
+        variableName = parsedSource.column;
+      else
+        variableName = parsedSource.column + "." + parsedSource.member;
+      variableName += "/";
+      variableName += std::to_string(mappingParams.varno);
+
+      std::vector<int> varnos{mappingParams.varno.value()};
+      varnos.insert(varnos.end(), mappingParams.auxiliaryVarnos.value().begin(),
+                    mappingParams.auxiliaryVarnos.value().end());
+
+      detail::VariableReaderParameters readerParams;
+      eckit::LocalConfiguration readerConfig;
+      readerConfig.set("type", "from rows with matching varnos");
+      readerConfig.set("varnos", varnos);
+      readerParams.validateAndDeserialize(readerConfig);
+
+      const bool hasChannelAxis = oops::contains(multichannelVarnos, mappingParams.varno);
+      VariableCreator creator(variableName,
+                              parsedSource.column,
+                              parsedSource.member,
+                              hasChannelAxis,
+                              readerParams.params.value());
+      variableCreators.push_back(std::move(creator));
     }
   }
 
-  // Process complementary columns
-  for (const detail::ComplementaryVariablesParameters &varParams :
+  // Handle complementary variables
+  for (const detail::ComplementaryVariablesParameters &complementaryVariablesParams :
        layoutParams.complementaryVariables.value()) {
-    // These currently must be string-valued columns, so they cannot be bitfields.
-    // And they are varno-independent.
-    for (const std::string &input : varParams.inputNames.value()) {
-      mappings.nonbitfieldColumns[input].markAsVarnoIndependent();
+    for (const std::string &columnName : complementaryVariablesParams.inputNames.value()) {
+      // Skip columns absent from the query.
+      if (!isSourceInQuery(ParsedColumnExpression(columnName), queryContents))
+        continue;
+
+      VariableCreator creator(columnName,
+                              columnName,
+                              "",
+                              false /*has channel axis?*/,
+                              varCreationParams.defaultReader.value().params.value());
+      variableCreators.push_back(std::move(creator));
     }
   }
 
-  // Check consistency (no non-bitfield column or bitfield column member should be declared both
-  // as varno-independent and varno-dependent)
-  for (const auto &columnAndMapping : mappings.nonbitfieldColumns)
-    columnAndMapping.second.checkConsistency(columnAndMapping.first);
-  for (const auto &columnAndMapping : mappings.bitfieldColumns)
-    columnAndMapping.second.checkConsistency(columnAndMapping.first);
+  /// \brief Constructs objects that will create temporary variables holding data loaded from ODB
+  /// columns with dates and times. These will subsequently be transformed by
+  /// CreateDateTimeTransform into variables storing datetimes in the ioda format, and the temporary
+  /// variables (with names starting with a double underscore) will be deleted.
+  {
+    const VariableReaderParametersBase &readerParams =
+        varCreationParams.defaultReader.value().params.value();
 
-  return mappings;
+    if (isSourceInQuery(ParsedColumnExpression("date"), queryContents))
+      variableCreators.push_back(VariableCreator("MetaData/__date",
+                                                 "date",
+                                                 "", // member
+                                                 false /*has channel axis?*/,
+                                                 readerParams));
+    if (isSourceInQuery(ParsedColumnExpression("time"), queryContents))
+      variableCreators.push_back(VariableCreator("MetaData/__time",
+                                                 "time",
+                                                 "", // member
+                                                 false /*has channel axis?*/,
+                                                 readerParams));
+    if (isSourceInQuery(ParsedColumnExpression("receipt_date"), queryContents))
+      variableCreators.push_back(VariableCreator("MetaData/__receipt_date",
+                                                 "receipt_date",
+                                                 "", // member
+                                                 false /*has channel axis?*/,
+                                                 readerParams));
+    if (isSourceInQuery(ParsedColumnExpression("receipt_time"), queryContents))
+      variableCreators.push_back(VariableCreator("MetaData/__receipt_time",
+                                                 "receipt_time",
+                                                 "", // member
+                                                 false /*has channel axis?*/,
+                                                 readerParams));
+  }
+
+  return variableCreators;
 }
+
+/// \brief Creates a vector of objects transforming pairs of variables storing dates and times in
+/// the ODB format into single variables storing datetimes in the ioda format.
+std::vector<std::unique_ptr<ObsGroupTransformBase>> makeDateTimeTransforms(
+    const ODC_Parameters &odcParameters,
+    const std::vector<OdbVariableParameters> &variableParameters,
+    const OdbVariableCreationParameters& varCreationParameters) {
+  std::vector<std::unique_ptr<ObsGroupTransformBase>> transforms;
+
+  bool hasDate = false, hasTime = false, hasReceiptDate = false, hasReceiptTime = false;
+  for (const OdbVariableParameters &varParams : variableParameters) {
+    if (varParams.name.value() == "date")
+      hasDate = true;
+    else if (varParams.name.value() == "time")
+      hasTime = true;
+    else if (varParams.name.value() == "receipt_date")
+      hasReceiptDate = true;
+    else if (varParams.name.value() == "receipt_time")
+      hasReceiptTime = true;
+  }
+
+  // MetaData/dateTime
+  if (hasDate && hasTime) {
+    eckit::LocalConfiguration config;
+    config.set("name", "create dateTime");
+    config.set("clamp to window start", true);
+    if (!varCreationParameters.timeDisplacement.value().empty())
+      config.set("displace by", varCreationParameters.timeDisplacement.value());
+    ObsGroupTransformParameters transformParameters;
+    transformParameters.validateAndDeserialize(config);
+    transforms.push_back(ObsGroupTransformFactory::create(transformParameters.params,
+                                                          odcParameters, varCreationParameters));
+  }
+
+  // MetaData/receiptdateTime
+  if (hasReceiptDate && hasReceiptTime) {
+    eckit::LocalConfiguration config;
+    config.set("name", "create dateTime");
+    config.set("input date", "MetaData/__receipt_date");
+    config.set("input time", "MetaData/__receipt_time");
+    config.set("output", "MetaData/receiptdateTime");
+    // TODO(someone): does this variable not need to be displaced like dateTime?
+    // It wasn't in the original code, but this may be unintentional.
+    ObsGroupTransformParameters transformParameters;
+    transformParameters.validateAndDeserialize(config);
+    transforms.push_back(ObsGroupTransformFactory::create(transformParameters.params,
+                                                          odcParameters, varCreationParameters));
+  }
+
+  // MetaData/initialDateTime
+  const bool writeInitialDateTime = hasDate && hasTime &&
+    odcParameters.timeWindowExtendedLowerBound != util::missingValue<util::DateTime>();
+  if (writeInitialDateTime) {
+    eckit::LocalConfiguration config;
+    config.set("name", "create dateTime");
+    config.set("output", "MetaData/initialDateTime");
+    ObsGroupTransformParameters transformParameters;
+    transformParameters.validateAndDeserialize(config);
+    transforms.push_back(ObsGroupTransformFactory::create(transformParameters.params,
+                                                          odcParameters, varCreationParameters));
+  }
+
+  return transforms;
+}
+
+/// \brief Creates and returns a vector of objects applying extra transforms to an ObsGroup read
+/// from an ODB file.
+std::vector<std::unique_ptr<ObsGroupTransformBase>> makeTransforms(
+    const ODC_Parameters &odcParameters,
+    const std::vector<OdbVariableParameters> &variableParameters,
+    const OdbVariableCreationParameters& varCreationParameters) {
+  // Date/time transforms are always applied as long as the required columns are in the query.
+  std::vector<std::unique_ptr<ObsGroupTransformBase>> transforms = makeDateTimeTransforms(
+        odcParameters, variableParameters, varCreationParameters);
+
+  // The layout file may list extra transforms to be applied as well.
+  for (const ObsGroupTransformParameters &transformParameters :
+       varCreationParameters.transforms.value())
+    transforms.push_back(ObsGroupTransformFactory::create(transformParameters.params,
+                                                          odcParameters, varCreationParameters));
+
+  return transforms;
+}
+
+// -------------------------------------------------------------------------------------------------
+// Functions used by the ODB writer.
 
 struct ReverseColumnMappings {
   std::map<std::string, std::string> varnoIndependentColumns;
@@ -426,6 +512,11 @@ ReverseColumnMappings collectReverseColumnMappings(const detail::ODBLayoutParame
 
   // Process varno-independent columns
   for (const detail::VariableParameters &columnParams : layoutParams.variables.value()) {      
+    if (columnParams.mode.value() == detail::IoMode::READ) {
+      // This column is meant to be read, but not written.
+      continue;
+    }
+
     const auto it = std::find(columns.begin(), columns.end(), columnParams.source.value());
     if (it != columns.end())
       mappings.varnoIndependentColumns[columnParams.name.value()] = columnParams.source.value();
@@ -811,7 +902,7 @@ void fillFloatArray(const Group & storageGroup, const std::string varname,
         }
       } else {
         for (int j = 0; j < numrows; j++) {
-          if (derived_varname && extendeds[j] == 0 || (!derived_varname && extendeds[j] == 1) || fillValue == buffer[j]) {
+          if ((derived_varname && extendeds[j] == 0) || (!derived_varname && extendeds[j] == 1) || fillValue == buffer[j]) {
             outdata[j] = odb_missing_float;
           } else {
             outdata[j] = buffer[j];
@@ -1242,8 +1333,7 @@ ObsGroup openFile(const ODC_Parameters& odcparams,
   using std::vector;
 
   oops::Log::debug() << "ODC called with " << odcparams.queryFile << "  " <<
-                        odcparams.mappingFile << "  " << odcparams.maxNumberChannels <<
-                        std::endl;
+                        odcparams.mappingFile << std::endl;
 
   // 2. Extract the lists of columns and varnos to select from the query file.
 
@@ -1259,7 +1349,7 @@ ObsGroup openFile(const ODC_Parameters& odcparams,
 
   // 3. Perform the SQL query.
 
-  DataFromSQL sql_data(odcparams.maxNumberChannels);
+  DataFromSQL sql_data;
   {
     std::vector<std::string> columnNames = columnSelection.columns();
 
@@ -1278,18 +1368,26 @@ ObsGroup openFile(const ODC_Parameters& odcparams,
     sql_data.select(columnNames,
                     odcparams.filename,
                     varnos,
-                    queryParameters.where.value().query,
-                    queryParameters.truncateProfilesToNumLev.value());
+                    queryParameters.where.value().query);
   }
 
-  const size_t num_rows = sql_data.numberOfMetadataRows();
-  if (num_rows == 0) return storageGroup;
+  const std::unique_ptr<RowsIntoLocationsSplitterBase> rowsIntoLocationsSplitter =
+      RowsIntoLocationsSplitterFactory::create(
+        queryParameters.variableCreation.rowsIntoLocationsSplit.value().params);
+  const RowsByLocation rowsByLocation = rowsIntoLocationsSplitter->groupRowsByLocation(sql_data);
+
+  if (rowsByLocation.empty())
+    return storageGroup;
 
   // 4. Create an ObsGroup, using the mapping file to set up the translation of ODB column names
   // to ioda variable names
 
   std::vector<std::string> ignores;
   ignores.push_back("Location");
+  ignores.push_back("MetaData/__date");
+  ignores.push_back("MetaData/__time");
+  ignores.push_back("MetaData/__receipt_date");
+  ignores.push_back("MetaData/__receipt_time");
   ignores.push_back("MetaData/dateTime");
   ignores.push_back("MetaData/receiptdateTime");
   // Write out MetaData/initialDateTime if 'time window extended lower bound' is non-missing.
@@ -1300,131 +1398,62 @@ ObsGroup openFile(const ODC_Parameters& odcparams,
     ignores.push_back("MetaData/initialDateTime");
   ignores.push_back("Channel");
 
-  NewDimensionScales_t vertcos = sql_data.getVertcos(varnos[0]);
+  std::unique_ptr<ChannelIndexerBase> channelIndexer;
+  if (queryParameters.variableCreation.channelIndexing.value()) {
+    channelIndexer = ChannelIndexerFactory::create(
+          queryParameters.variableCreation.channelIndexing.value()->params);
+  }
+
+  NewDimensionScales_t dimensionScales = makeDimensionScales(
+    rowsByLocation, channelIndexer.get(), sql_data);
 
   auto og = ObsGroup::generate(
     storageGroup,
-    vertcos,
+    dimensionScales,
     detail::DataLayoutPolicy::generate(
       detail::DataLayoutPolicy::Policies::ObsGroupODB, odcparams.mappingFile, ignores));
 
   // 5. Determine which columns and bitfield column members are varno-dependent and which aren't
-  detail::ODBLayoutParameters layoutParams;
-  layoutParams.validateAndDeserialize(
+  detail::ODBLayoutParameters layoutParameters;
+  layoutParameters.validateAndDeserialize(
         eckit::YAMLConfiguration(eckit::PathName(odcparams.mappingFile)));
-  const ColumnMappings columnMappings = collectColumnMappings(layoutParams);
+
+  const std::vector<VariableCreator> variableCreators = makeVariableCreators(
+    layoutParameters, queryParameters, sql_data.getVarnos());
 
   // 6. Populate the ObsGroup with variables
 
   ioda::VariableCreationParameters params;
 
-  // Begin with datetime variables, which are handled specially -- date and time are stored in
-  // separate ODB columns, but ioda represents them in a single variable.
-  {
-    ioda::VariableCreationParameters params_dates = params;
-    params_dates.setFillValue<int64_t>(queryParameters.variableCreation.missingInt64);
-    // MetaData/dateTime
-    ioda::Variable v = og.vars.createWithScales<int64_t>(
-    "MetaData/dateTime", {og.vars["Location"]}, params_dates);
-    v.atts.add<std::string>("units",
-                            queryParameters.variableCreation.epoch);
-    v.write(sql_data.getDates("date", "time",
-                              getEpochAsDtime(v),
-                              queryParameters.variableCreation.missingInt64,
-                              odcparams.timeWindowStart,
-                              odcparams.timeWindowExtendedLowerBound,
-                              queryParameters.variableCreation.timeDisplacement));
-    // MetaData/receiptdateTime
-    v = og.vars.createWithScales<int64_t>(
-    "MetaData/receiptdateTime", {og.vars["Location"]}, params_dates);
-    v.atts.add<std::string>("units",
-                            queryParameters.variableCreation.epoch);
-    v.write(sql_data.getDates("receipt_date", "receipt_time",
-                              getEpochAsDtime(v),
-                              queryParameters.variableCreation.missingInt64));
-    // MetaData/initialDateTime
-    if (writeInitialDateTime) {
-      v = og.vars.createWithScales<int64_t>
-        ("MetaData/initialDateTime", {og.vars["Location"]}, params_dates);
-      v.atts.add<std::string>("units",
-                              queryParameters.variableCreation.epoch);
-      v.write(sql_data.getDates("date", "time",
-                                getEpochAsDtime(v),
-                                queryParameters.variableCreation.missingInt64));
-    }
+  // 6.1. Create location-independent variables
+
+  if (channelIndexer)
+    createChannelVariable(og, *channelIndexer, rowsByLocation, sql_data);
+
+  // 6.2. Create location-dependent variables
+
+  for (const VariableCreator &creator : variableCreators) {
+    creator.createVariable(og, params, rowsByLocation, sql_data);
   }
 
-  for (const std::string &column : sql_data.getColumns()) {
-    // Check if this column requires special treatment...
-    if (column == "initial_vertco_reference" && sql_data.getObsgroup() == obsgroup_airs) {
-      sql_data.assignChannelNumbers(varno_rawbt, og);
-    } else if (column == "initial_vertco_reference" && (sql_data.getObsgroup() == obsgroup_iasi ||
-                                                           sql_data.getObsgroup() == obsgroup_cris ||
-                                                           sql_data.getObsgroup() == obsgroup_hiras ||
-                                                           sql_data.getObsgroup() == obsgroup_mtgirs)) {
-      sql_data.assignChannelNumbers(varno_rawsca, og);
-    } else if (column == "initial_vertco_reference" && (sql_data.getObsgroup() == obsgroup_abiclr ||
-                                                        sql_data.getObsgroup() == obsgroup_ahiclr ||
-                                                        sql_data.getObsgroup() == obsgroup_atms ||
-                                                        sql_data.getObsgroup() == obsgroup_gmihigh ||
-                                                        sql_data.getObsgroup() == obsgroup_gmilow ||
-                                                        sql_data.getObsgroup() == obsgroup_mwri ||
-                                                        sql_data.getObsgroup() == obsgroup_seviriasr ||
-                                                        sql_data.getObsgroup() == obsgroup_seviriclr ||
-                                                        sql_data.getObsgroup() == obsgroup_amsub ||
-                                                        sql_data.getObsgroup() == obsgroup_ssmis)) {
-      sql_data.assignChannelNumbersSeq(std::vector<int>({varno_rawbt}), og);
-    } else if (column == "initial_vertco_reference" && sql_data.getObsgroup() == obsgroup_atovs) {
-      sql_data.assignChannelNumbersSeq(std::vector<int>({varno_rawbt_amsu}), og);
-    } else if (column == "initial_vertco_reference" && sql_data.getObsgroup() == obsgroup_mwsfy3) {
-      sql_data.assignChannelNumbersSeq(std::vector<int>({varno_rawbt_mwts,varno_rawbt_mwhs}), og);
-    } else if (column == "initial_vertco_reference" && sql_data.getObsgroup() == obsgroup_amsr) {
-      sql_data.assignChannelNumbersSeq(std::vector<int>({varno_rawbt,varno_rawbt_amsr_89ghz}), og);
-    // For Scatwind, channels dimension is being used to store wind ambiguities
-    } else if (column == "initial_vertco_reference" && sql_data.getObsgroup() == obsgroup_scatwind) {
-      sql_data.assignChannelNumbersSeq(std::vector<int>({varno_dd}), og);
-    // For GNSS-RO, channels dimension is being used to the observations through the profile
-    } else if (column == "vertco_reference_2" && sql_data.getObsgroup() == obsgroup_gnssro) {
-      sql_data.assignChannelNumbersSeq(std::vector<int>({varno_bending_angle}), og);
-    // For SurfaceCloud, channels dimension is being used for layer number for cloud layers
-    } else if (column == "initial_vertco_reference" && sql_data.getObsgroup() == obsgroup_surfacecloud) {
-      sql_data.assignChannelNumbersSeq(std::vector<int>({varno_cloud_fraction_covered}), og);
-    // When an ODB is written by IODA the Channel variable (and dimension)
-    // is written to vertco_reference_1.  This if statement then reads this back in.
-    } else if (column == "vertco_reference_1") {
-      sql_data.assignChannelNumbers(varnos[0], og, "vertco_reference_1");
-   // ... no, it does not.
-    } else {      
-      // This loop handles columns whose cells should be transferred in their entirety into ioda
-      // variables (without splitting into bitfield members)
-      const auto nonbitfieldColumnIt = columnMappings.nonbitfieldColumns.find(column);
-      if (nonbitfieldColumnIt != columnMappings.nonbitfieldColumns.end()) {
-        nonbitfieldColumnIt->second.createIodaVariables(sql_data, column, varnos, params, og);
-      }
-
-      // This loop handles bitfield columns whose members should be transferred into separate
-      // ioda variables. Note that the mapping file may legitimately ask for a bitfield column to be
-      // transferred whole into a ioda variable and in addition for some some or all of that
-      // column's members to be transferred into different variables; so both loops may be entered
-      // in succession.
-      const auto bitfieldColumnIt = columnMappings.bitfieldColumns.find(column);
-      if (bitfieldColumnIt != columnMappings.bitfieldColumns.end()) {
-        const MemberSelection &memberSelection = columnSelection.columnMembers(column);
-        bitfieldColumnIt->second.createIodaVariables(sql_data, column, memberSelection,
-                                                     varnos, params, og);
-      }
-    }
-  }
+  std::vector<std::unique_ptr<ObsGroupTransformBase>> transforms = makeTransforms(
+        odcparams, queryParameters.variables, queryParameters.variableCreation);
+  for (const std::unique_ptr<ObsGroupTransformBase> &transform : transforms)
+    transform->transform(og);
 
   og.vars.stitchComplementaryVariables();
 
-  // If requested to do so, fill `MetaData/stationIdentification` with values constructed from
-  // several (observation-dependent) input variables using the `getStationIDs()` function.
-  // `MetaData/stationIdentification` must be mapped to an ODB variable (typically `statid`)
-  // for this to be possible.
-  if (queryParameters.constructStationID) {
-    ioda::Variable v = og.vars["MetaData/stationIdentification"];
-    v.write(sql_data.getStationIDs());
+  // Remove temporary variables, whose names start with a double underscore.
+  // (It would be clearer to place them in a separate group, but ObsGroup doesn't provide a method
+  // for removing a group.
+  if (og.exists("MetaData")) {
+    Group tempOdbId = og.open("MetaData");
+    const std::vector<std::string> names = tempOdbId.vars.list();
+    for (const std::string &name : names) {
+      if (eckit::StringTools::startsWith(name, "__")) {
+        og.vars.remove("MetaData/" + name);
+      }
+    }
   }
 
   return og;

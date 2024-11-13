@@ -31,7 +31,8 @@ set(
   ioda/yaml/iodatest_odb_gmihigh_write.yaml
   ioda/yaml/iodatest_odb_gmilow.yaml
   ioda/yaml/iodatest_odb_gnssro.yaml
-  ioda/yaml/iodatest_odb_gnssro_profile.yaml
+  ioda/yaml/iodatest_odb_gnssro_profile_100.yaml
+  ioda/yaml/iodatest_odb_gnssro_profile_333.yaml
   ioda/yaml/iodatest_odb_groundgps.yaml
   ioda/yaml/iodatest_odb_hirasfsr.yaml
   ioda/yaml/iodatest_odb_hloswind.yaml
@@ -67,6 +68,7 @@ set(
   ioda/yaml/iodatest_odb_surfacesst.yaml
   ioda/yaml/odb_default_name_map.yaml
   ioda/yaml/odb_aircraft_name_map.yaml
+  ioda/yaml/odb_amsr_name_map.yaml
   ioda/yaml/odb_gnssro_name_map.yaml
   ioda/yaml/odb_gnssro_profile_name_map.yaml
   ioda/yaml/odb_oceansound_name_map.yaml

@@ -1,5 +1,9 @@
 where:
   varno: [119,121,231,257,266,269]
+channel indexing:
+  method: constant
+  varnos: [266]
+multichannel varnos: [119,121,231,257,266,269]
 variables:
 - name: initial_obsvalue
 - name: lat

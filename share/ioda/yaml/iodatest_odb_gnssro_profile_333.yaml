@@ -1,0 +1,37 @@
+where:
+  varno: [162]
+  query: mean_frequency = 0
+rows into locations split:
+  method: by seqno
+  maximum number of channels: &num_channels 333
+channel indexing:
+  method: sequential
+  # Force the number of channels to be 333 even if the longest sequence is shorter than that.
+  # TODO(someone): is this behaviour required or even desirable?
+  number of channels: *num_channels
+multichannel varnos: [162]
+variables:
+- name: confidence
+- name: gen_centre
+- name: initial_obsvalue
+- name: lat
+- name: lon
+- name: numlev
+- name: platform_id
+- name: qc_flags
+- name: radcurv
+- name: satellite_classification
+- name: satellite_identifier
+- name: software_identifier
+- name: time_difference
+- name: undulation
+- name: receipt_time
+- name: receipt_date
+- name: seqno
+- name: initial_vertco_reference
+- name: vertco_reference_2
+- name: date
+- name: time
+- name: ops_obsgroup
+- name: varno
+- name: seqno

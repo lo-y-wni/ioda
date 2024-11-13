@@ -1,5 +1,8 @@
 where:
   varno: [233]
+channel indexing:
+  method: read from first location
+multichannel varnos: [233]
 variables:
 - name: amsuscatindex
 - name: azimuth

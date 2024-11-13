@@ -1,5 +1,8 @@
 where:
   varno: [1,2,3,4,29,59,111,112]
+rows into locations split:
+  method: by seqno, then by the counter of rows with a given varno
+  keep only reported levels: true
 variables:
 # varno dependent
 - name: initial_obsvalue
@@ -36,5 +39,9 @@ variables:
 - name: time
 - name: varno
 - name: seqno
-truncate profiles to numlev: true
-construct station ID: true
+post-read transforms:
+  - name: create stationIdentification
+    sources:
+    - wmo id:
+        block number: MetaData/wmo_block_number
+        station number: MetaData/wmo_station_number

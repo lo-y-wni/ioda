@@ -1,5 +1,9 @@
 where:
   varno: [119,247,295]
+channel indexing:
+  method: sequential
+  varnos: [119]
+multichannel varnos: [119,247]
 variables:
 - name: initial_obsvalue
 - name: initial_vertco_reference
@@ -14,3 +18,5 @@ variables:
 - name: ops_obsgroup
 - name: varno
 - name: seqno
+# This is for the Global model. May need to be set to the default value of 'true' for the UKV model.
+skip variables corresponding to missing varnos: false

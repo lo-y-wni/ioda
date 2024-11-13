@@ -1,5 +1,8 @@
 where:
   varno: [249]
+channel indexing:
+  method: sequential
+multichannel varnos: [249]
 variables:
 - name: amsua1_temp
 - name: amsua2_temp

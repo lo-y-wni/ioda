@@ -1,5 +1,9 @@
 where:
   varno: [119,267]
+channel indexing:
+  method: sequential
+  varnos: [119,267]
+multichannel varnos: [119,267]
 variables:
 - name: amsr_89ghz_fov_number_1
 - name: amsr_89ghz_fov_number_2

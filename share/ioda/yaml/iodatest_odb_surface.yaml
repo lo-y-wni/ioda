@@ -27,4 +27,13 @@ variables:
 - name: ops_obsgroup
 - name: varno
 - name: seqno
-construct station ID: true
+post-read transforms:
+  - name: create stationIdentification
+    sources:
+    - variable:
+        name: MetaData/buoyIdentifier
+        width: 7
+        pad with zeros: true
+    - wmo id:
+        block number: MetaData/wmoBlockNumber
+        station number: MetaData/wmoStationNumber

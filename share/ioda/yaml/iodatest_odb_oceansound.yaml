@@ -1,6 +1,8 @@
 where:
   varno: [1,2,224]
   query: (year(date) != 0) AND (month(date) != 0) AND (day(date) != 0)
+rows into locations split:
+  method: by seqno, then by the counter of rows with a given varno
 variables:
 - name: receipt_time
 - name: receipt_date
@@ -21,4 +23,13 @@ variables:
 - name: ops_obsgroup
 - name: varno
 - name: seqno
-construct station ID: true
+post-read transforms:
+  - name: create stationIdentification
+    sources:
+    - variable:
+        name: MetaData/argo_identifier
+        width: 8
+        pad with zeros: true
+    - variable:
+        name: MetaData/buoyIdentifier
+        width: 8

@@ -1,5 +1,9 @@
 where:
   varno: [119,121,231,269]
+channel indexing:
+  method: sequential
+  varnos: [119]
+multichannel varnos: [119,121,231,269]
 variables:
 - name: initial_obsvalue
 - name: initial_vertco_reference

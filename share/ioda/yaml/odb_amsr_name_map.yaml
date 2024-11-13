@@ -1,0 +1,82 @@
+varno-independent columns:
+  - name: "MetaData/amsr_89ghz_latitude1"
+    source: "amsr_89ghz_latitude_1"
+  - name: "MetaData/amsr_89ghz_latitude2"
+    source: "amsr_89ghz_latitude_2"
+  - name: "MetaData/amsr_89ghz_longitude1"
+    source: "amsr_89ghz_longitude_1"
+  - name: "MetaData/amsr_89ghz_longitude2"
+    source: "amsr_89ghz_longitude_2"
+  - name: "MetaData/amsr_89ghz_fov_number1"
+    source: "amsr_89ghz_fov_number_1"
+  - name: "MetaData/amsr_89ghz_fov_number2"
+    source: "amsr_89ghz_fov_number_2"
+  - name: "MetaData/sensorAzimuthAngle"
+    source: "azimuth"
+  - name: "MetaData/channel_quality_flags"
+    source: "channel_quality_flags"
+  - name: "MetaData/latitude"
+    source: "lat"
+  - name: "MetaData/longitude"
+    source: "lon"
+  - name: "MetaData/observationSubTypeNum"
+    source: "ops_subtype"
+  - name: "MetaData/qc_hirs_fov"
+    source: "qchirsfov"
+  - name: "MetaData/satelliteIdentifier"
+    source: "satellite_identifier"
+  - name: "MetaData/sensorScanPosition"
+    source: "scanpos"
+  - name: "MetaData/sensorZenithAngle"
+    source: "zenith"
+# Added specifically for ODB write
+  - name: "MetaData/height"
+    source: "height"
+  - name: "OneDVar/emissivity"
+    source: "emissivity_onedvar"
+    multichannel: true
+    reader:
+      type: from rows with matching varnos
+      varnos: [119]
+  - name: "OneDVar/skinTemperature"
+    source: "skint_onedvar"
+  - name: "NewMetaData/sensorCentralWavenumber"
+    source: "sensor_wvn"
+  - name: "NewMetaData/sensorChannelNumber"
+    source: "sensor_chan_num"
+  - name: "NewMetaData/variable_names"
+    source: "var_names"
+  - name: "MetaData/surfaceQualifier"
+    source: "surface_type_indicator"
+  - name: "MetaData/sequenceNumber"
+    source: seqno
+  - name: "MetaData/observationTypeNum"
+    source: ops_obsgroup
+varno-dependent columns:
+  - source: "initial_obsvalue"
+    group name: "ObsValue"
+    varno-to-variable-name mapping: &obsvalue_varnos
+      - name: "brightnessTemperature"
+        varno: 119
+        auxiliary varnos: [267]
+  - source: "obsvalue"
+    group name: "DerivedObsValue"
+    varno-to-variable-name mapping: *obsvalue_varnos
+  - source: "obs_error"
+    group name: "EffectiveError"
+    varno-to-variable-name mapping: *obsvalue_varnos
+  - source: "effective_qc"
+    group name: "EffectiveQC"
+    varno-to-variable-name mapping: *obsvalue_varnos
+  - source: "bgvalue"
+    group name: "hofx"
+    varno-to-variable-name mapping: *obsvalue_varnos
+  - source: "obsbias"
+    group name: "ObsBias"
+    varno-to-variable-name mapping: *obsvalue_varnos
+  - source: "pge"
+    group name: "GrossErrorProbability"
+    varno-to-variable-name mapping: *obsvalue_varnos
+  - source: "dflag_badrawbt"
+    group name: "DiagnosticFlags/BadRawBT"
+    varno-to-variable-name mapping: *obsvalue_varnos

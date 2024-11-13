@@ -23,14 +23,11 @@ int main(int argc, char** argv) {
   try {
     using namespace ioda;
 
-    // Assume that unit tests will either set maxNumberChannels or
-    // timeWindowStart and timeWindowExtendedLowerBound.
-    // In other words all three optional arguments are never set together.
-    if (argc != 5 && argc != 6 && argc != 7) {
+    if (argc != 5 && argc != 7) {
       std::cerr << "Usage: " << argv[0]
                 << " subtype_str "
-                   "filename mappingFile queryFile [maxNumberChannels]"
-                << " [timeWindowStart] [timeWindowExtendedLowerBound]"
+                   "filename mappingFile queryFile"
+                << " [timeWindowStart timeWindowExtendedLowerBound]"
                 << std::endl;
       return 1;
     }
@@ -40,11 +37,6 @@ int main(int argc, char** argv) {
     odcparams.filename    = argv[2];
     odcparams.mappingFile = argv[3];
     odcparams.queryFile   = argv[4];
-    if (argc == 6) {
-      odcparams.maxNumberChannels = std::stoi(argv[5]);
-    } else {
-      odcparams.maxNumberChannels = 0;
-    }
 
     if (argc == 7) {
       odcparams.timeWindowStart = util::DateTime(argv[5]);
