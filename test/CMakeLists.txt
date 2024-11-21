@@ -217,6 +217,8 @@ list( APPEND ioda_test_input
   testinput/iodatest_build_sondes_file_set_mpi7.yaml
   testinput/iodatest_build_gnssro_file_set_mpi7.yaml
   testinput/iodatest_build_windborne_file_set_mpi7.yaml
+  testinput/iodatest_filter_obs_single_file.yaml
+  testinput/iodatest_filter_obs_multi_file.yaml
   testinput/iodatest_time_io.yaml
   testinput/iodatest_time_io_odc.yaml
   testinput/iodatest_time_io_reader_pool.yaml
@@ -1824,6 +1826,48 @@ ecbuild_add_test( TARGET  test_ioda_build_windborne_file_set_mpi7
                   COMMAND ${CMAKE_BINARY_DIR}/bin/ioda-buildInputFileSet.x
                   ARGS    "testinput/iodatest_build_windborne_file_set_mpi7.yaml"
                   TEST_DEPENDS get_ioda_test_data test_ioda_clean_build_file_set_files )
+
+#####################################################################
+# Test the ioda-filterObs.x application
+#####################################################################
+
+# this test removes the output files from prior testing
+ecbuild_add_test( TARGET  test_ioda_clean_filter_obs_files
+                  COMMAND rm
+                  ARGS    "-f"
+                          "testoutput/filter_obs_single_file_input.nc4"
+                          "testoutput/filter_obs_multi_file_input.nc4"
+                )
+
+# following tests run the filter app and create output files
+ecbuild_add_test( TARGET  test_ioda_filter_obs_single_file_input
+                  COMMAND ${CMAKE_BINARY_DIR}/bin/ioda-filterObs.x
+                  ARGS    "testinput/iodatest_filter_obs_single_file.yaml"
+                  TEST_DEPENDS get_ioda_test_data test_ioda_clean_filter_obs_files )
+
+ecbuild_add_test( TARGET  test_ioda_filter_obs_multi_file_input
+                  COMMAND ${CMAKE_BINARY_DIR}/bin/ioda-filterObs.x
+                  ARGS    "testinput/iodatest_filter_obs_multi_file.yaml"
+                  TEST_DEPENDS get_ioda_test_data test_ioda_clean_filter_obs_files )
+
+# following tests compare the output files of the filter app
+ecbuild_add_test( TARGET  test_ioda_filter_obs_cmp_single_file_input
+                  TYPE    SCRIPT
+                  COMMAND bash
+                  ARGS    ${CMAKE_BINARY_DIR}/bin/ioda_compare.sh
+                          netcdf
+                          "echo Checking filter obs (single file input)"
+                          filter_obs_single_file_input.nc4
+                  TEST_DEPENDS get_ioda_test_data test_ioda_filter_obs_single_file_input )
+
+ecbuild_add_test( TARGET  test_ioda_filter_obs_cmp_multi_file_input
+                  TYPE    SCRIPT
+                  COMMAND bash
+                  ARGS    ${CMAKE_BINARY_DIR}/bin/ioda_compare.sh
+                          netcdf
+                          "echo Checking filter obs (multiple file input)"
+                          filter_obs_multi_file_input.nc4
+                  TEST_DEPENDS get_ioda_test_data test_ioda_filter_obs_multi_file_input )
 
 #####################################################################
 # Test the script backend

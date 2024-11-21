@@ -13,3 +13,4 @@ ecbuild_add_executable( TARGET  ioda-buildInputFileSet.x
 
 add_subdirectory( validator )
 add_subdirectory( odfDemo )
+add_subdirectory( filterObs )

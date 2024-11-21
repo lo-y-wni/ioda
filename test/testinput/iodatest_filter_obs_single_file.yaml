@@ -1,0 +1,16 @@
+---
+time window:
+  begin: "2024-01-10T00:00:40Z"
+  end: "2024-01-10T00:04:50Z"
+
+obs space:
+  name: "Single File Input"
+  simulated variables: ['airTemperature']
+  obsdatain:
+    engine:
+      type: H5File
+      obsfile: "Data/testinput_tier_1/filter_obs_single_file.nc4"
+  obsdataout:
+    engine:
+      type: H5File
+      obsfile: "testoutput/filter_obs_single_file_input.nc4"
