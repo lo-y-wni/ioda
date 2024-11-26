@@ -132,6 +132,7 @@ list( APPEND ioda_test_input
   testinput/iodatest_obsspace_reader_pool.yaml
   testinput/iodatest_obsspace_append.yaml
   testinput/iodatest_obsspace_append_mpi.yaml
+  testinput/iodatest_obsspace_dataframe_flag.yaml
   testinput/iodatest_obsspace_datetime.yaml
   testinput/iodatest_obsspace_dist_write.yaml
   testinput/iodatest_obsspace_default_fill_values.yaml
@@ -589,6 +590,12 @@ endif()
 ecbuild_add_test( TARGET  test_ioda_obsspace_datetime
                   COMMAND test_ioda_obsspace
                   ARGS    "testinput/iodatest_obsspace_datetime.yaml"
+                  LIBS  ioda_test
+                  TEST_DEPENDS get_ioda_test_data )
+
+ecbuild_add_test( TARGET  test_ioda_obsspace_dataframe_flag
+                  COMMAND test_ioda_obsspace
+                  ARGS    "testinput/iodatest_obsspace_dataframe_flag.yaml"
                   LIBS  ioda_test
                   TEST_DEPENDS get_ioda_test_data )
 

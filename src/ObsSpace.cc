@@ -149,6 +149,9 @@ ObsSpace::ObsSpace(const eckit::Configuration & config, const eckit::mpi::Comm &
         util::printRunStats("ioda::ObsSpace::ObsSpace: start " + obsname_ + ": ", true, comm);
     }
 
+    // Read container toggle flag
+    use_dataframe_ = obs_params_.top_level_.useDataFrame.value();
+
     // Create an MPI distribution object
     const auto & distParams = obs_params_.top_level_.distribution.value().params.value();
     dist_ = DistributionFactory::create(obs_params_.comm(), distParams);

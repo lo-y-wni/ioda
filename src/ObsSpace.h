@@ -342,6 +342,9 @@ namespace ioda {
         /// \brief return reference to the record number vector
         const std::vector<std::size_t> & recnum() const {return recnums_;}
 
+        /// \brief return data frame container flag
+        bool useDataframe() const {return use_dataframe_;}
+
         /// \brief return reference to the index vector
         /// \details This method returns a reference to the index vector
         ///          data member. This is for read only access.
@@ -640,6 +643,9 @@ namespace ioda {
 
         /// \brief indicator whether the data in recidx_ is sorted
         bool recidx_is_sorted_;
+
+        /// \brief indicator whether to use the new dataframe container
+        bool use_dataframe_;
 
         /// \brief all data structures currently associated with this ObsSpace.
         /// \details This is used so associated data structures can change their state

@@ -790,6 +790,28 @@ void testDerivedObsError() {
 
 // -----------------------------------------------------------------------------
 
+void testDataframeFlag() {
+  // This test checks that the new dataframe usage flag is set as expected.
+  typedef ObsSpaceTestFixture Test_;
+
+  std::vector<eckit::LocalConfiguration> conf;
+  ::test::TestEnvironment::config().get("observations", conf);
+
+  for (std::size_t jj = 0; jj < Test_::size(); ++jj) {
+    // Grab the test data configurations
+    eckit::LocalConfiguration testConfig;
+    conf[jj].get("obs space", testConfig);
+
+    const ioda::ObsSpace & Odb = Test_::obspace(jj);
+
+    const bool obsSpaceFlag = Odb.useDataframe();
+    const bool expectedFlag = testConfig.getBool("use data frame container", false);
+    EXPECT_EQUAL(obsSpaceFlag, expectedFlag);
+  }
+}
+
+// -----------------------------------------------------------------------------
+
 void testCleanup() {
   // This test removes the obsspaces and ensures that they evict their contents
   // to disk successfully.
@@ -823,6 +845,8 @@ class ObsSpace : public oops::Test {
       { testWriteableGroup(); });
     ts.emplace_back(CASE("ioda/ObsSpace/testMultiDimTransfer")
       { testMultiDimTransfer(); });
+    ts.emplace_back(CASE("ioda/ObsSpace/testDataframeFlag")
+      { testDataframeFlag(); });
     ts.emplace_back(CASE("ioda/ObsSpace/testCleanup")
       { testCleanup(); });
   }

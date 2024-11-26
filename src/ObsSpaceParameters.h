@@ -91,6 +91,8 @@ class ObsTopLevelParameters : public oops::Parameters {
     oops::OptionalParameter<ObsDataOutParameters> obsDataOut{"obsdataout", this};
 
     oops::Parameter<int> obsPerturbationsSeed{"obs perturbations seed", 0, this};
+
+    oops::Parameter<bool> useDataFrame{"use data frame container", false, this};
 };
 
 class ObsSpaceParameters {
