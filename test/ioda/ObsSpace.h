@@ -419,9 +419,16 @@ void testGetDb() {
 void testPutDb() {
   typedef ObsSpaceTestFixture Test_;
 
+  std::vector<eckit::LocalConfiguration> conf;
+  ::test::TestEnvironment::config().get("observations", conf);
+
   const std::string GroupName("MetaData");
 
   for (std::size_t jj = 0; jj < Test_::size(); ++jj) {
+    // Grab the test data configurations
+    eckit::LocalConfiguration testConfig;
+    conf[jj].get("test data", testConfig);
+
     // Set up a pointer to the ObsSpace object for convenience
     ioda::ObsSpace & Odb = Test_::obspace(jj);
     const std::size_t Nlocs = Odb.nlocs();
@@ -537,6 +544,20 @@ void testPutDb() {
       Odb.get_db(GroupName, VarName, TestVec);
 
       EXPECT_EQUAL(ExpectedVec, TestVec);
+    }
+
+    // Test the listing of all groups and variables in the ObsSpace.
+    if (testConfig.has("expected groups list")) {
+      const std::vector<std::string> groups = Odb.listGroups();
+      const std::vector<std::string> expected_groups =
+        testConfig.getStringVector("expected groups list");
+      EXPECT_EQUAL(groups, expected_groups);
+    }
+    if (testConfig.has("expected variables list")) {
+      const std::vector<std::string> variables = Odb.listVariables();
+      const std::vector<std::string> expected_variables =
+        testConfig.getStringVector("expected variables list");
+      EXPECT_EQUAL(variables, expected_variables);
     }
   }
 }

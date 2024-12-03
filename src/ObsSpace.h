@@ -402,6 +402,14 @@ namespace ioda {
         const oops::ObsVariables & assimvariables() const
         { return assimvars_;}
 
+        /// \brief return a list of names of the groups contained in the ObsSpace.
+        std::vector<std::string> listGroups() const
+          {return obs_group_.listObjects<ObjectType::Group>(true);}
+
+        /// \brief return a list of names of the variables contained in the ObsSpace.
+        std::vector<std::string> listVariables() const
+          {return obs_group_.listObjects<ObjectType::Variable>(true);}
+
         /// @}
         /// @name IO functions
         /// @{

@@ -41,6 +41,8 @@ observations:
     tolerance:
       - 1.0e-14
     variables for putget test: []
+    expected groups list: [DerivedObsError,GsiHofX,GsiHofXBc,GsiObsError,GsiQC,MetaData,ObsValue,PreQC,VarMetaData]
+    expected variables list: [Channel,Location,nobs,nrecs,nvars,DerivedObsError/temperature,GsiHofX/aerosol_optical_depth_4,GsiHofXBc/aerosol_optical_depth_4,GsiObsError/aerosol_optical_depth_4,GsiQC/aerosol_optical_depth_4,MetaData/DummyBoolVar,MetaData/DummyDateTimeVar,MetaData/DummyDoubleVar,MetaData/DummyFloatVar,MetaData/DummyIntVar,MetaData/DummyStringVar,MetaData/dateTime,MetaData/latitude,MetaData/longitude,MetaData/modis_deep_blue_flag,MetaData/solar_azimuth_angle,MetaData/solar_zenith_angle,MetaData/surface_type,ObsValue/aerosol_optical_depth_4,PreQC/aerosol_optical_depth_4,VarMetaData/frequency,VarMetaData/gsi_use_flag,VarMetaData/polarization,VarMetaData/sensor_channel,VarMetaData/wavenumber]
 
 - obs space:
     name: "AOD VIIRS"
