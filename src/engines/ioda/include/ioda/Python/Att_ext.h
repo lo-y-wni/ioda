@@ -75,11 +75,12 @@ public:
   AttributeReadNPArray(C* p) : parent_{p} {}
   template <class T>
   Eigen::Array<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> read() const {
-    Eigen::Array<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> vals;
+    typedef Eigen::Array<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> EigenArray_;
+    EigenArray_ vals;
 #ifdef _MSC_FULL_VER
-    parent_->readWithEigenRegular(vals);
+    parent_->readWithEigenRegular<EigenArray_>(vals);
 #else
-    parent_->template readWithEigenRegular(vals);
+    parent_->template readWithEigenRegular<EigenArray_>(vals);
 #endif
     return vals;
   }
@@ -120,10 +121,11 @@ public:
   AttributeWriteNPArray(C* p) : parent_{p} {}
   template <class T>
   void write(const Eigen::Array<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>& vals) const {
+    typedef Eigen::Array<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> EigenArray_;
 #ifdef _MSC_FULL_VER
-    parent_->writeWithEigenRegular(vals);
+    parent_->writeWithEigenRegular<EigenArray_>(vals);
 #else
-    parent_->template writeWithEigenRegular(vals);
+    parent_->template writeWithEigenRegular<EigenArray_>(vals);
 #endif
   }
 };

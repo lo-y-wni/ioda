@@ -65,11 +65,12 @@ public:
   Eigen::Array<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> read(
     const Selection& mem_selection  = Selection::all,
     const Selection& file_selection = Selection::all) const {
-    Eigen::Array<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> vals;
+    typedef Eigen::Array<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> EigenArray_;
+    EigenArray_ vals;
 #ifdef _MSC_FULL_VER
-    parent_->readWithEigenRegular(vals, mem_selection, file_selection);
+    parent_->readWithEigenRegular<EigenArray_>(vals, mem_selection, file_selection);
 #else
-    parent_->template readWithEigenRegular(vals, mem_selection, file_selection);
+    parent_->template readWithEigenRegular<EigenArray_>(vals, mem_selection, file_selection);
 #endif
     return vals;
   }
@@ -100,10 +101,11 @@ public:
   void write(const Eigen::Array<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>& vals,
              const Selection& mem_selection  = Selection::all,
              const Selection& file_selection = Selection::all) const {
+    typedef Eigen::Array<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> EigenArray_;
 #ifdef _MSC_FULL_VER
-    parent_->writeWithEigenRegular(vals, mem_selection, file_selection);
+    parent_->writeWithEigenRegular<EigenArray_>(vals, mem_selection, file_selection);
 #else
-    parent_->template writeWithEigenRegular(vals, mem_selection, file_selection);
+    parent_->template writeWithEigenRegular<EigenArray_>(vals, mem_selection, file_selection);
 #endif
   }
 };
