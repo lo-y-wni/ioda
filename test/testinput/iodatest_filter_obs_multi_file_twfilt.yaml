@@ -15,4 +15,4 @@ obs space:
   obsdataout:
     engine:
       type: H5File
-      obsfile: "testoutput/filter_obs_multi_file_input.nc4"
+      obsfile: "testoutput/filter_obs_multi_file_input_twfilt.nc4"

@@ -13,4 +13,8 @@ obs space:
   obsdataout:
     engine:
       type: H5File
-      obsfile: "testoutput/filter_obs_single_file_input.nc4"
+      obsfile: "testoutput/filter_obs_single_file_input_twfilt_rtfilt.nc4"
+
+receipt time filter:
+  cutoff time: "2024-01-10T00:03:30Z"
+  variable name: "MetaData/r2d2ReceiptTime"
