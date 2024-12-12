@@ -1,11 +1,12 @@
 where:
   varno: [119,121,231,257,266,269]
 channel indexing:
-  method: constant
+  method: sequential
   varnos: [266]
 multichannel varnos: [119,121,231,257,266,269]
 variables:
 - name: initial_obsvalue
+- name: initial_vertco_reference
 - name: lat
 - name: lon
 - name: satellite_identifier
