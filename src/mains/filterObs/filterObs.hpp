@@ -107,7 +107,7 @@ template <typename OBS> class FilterObs : public oops::Application {
   // ---------------------------------------------------------------------------
   virtual ~FilterObs() {}
   // ---------------------------------------------------------------------------
-  int execute(const eckit::Configuration & fullConfig, bool /* validate */) const override {
+  int execute(const eckit::Configuration & fullConfig) const {
     //  Setup observation window
     const util::TimeWindow timeWindow(fullConfig.getSubConfiguration("time window"));
     oops::Log::info() << "Observation window: " << timeWindow << std::endl;

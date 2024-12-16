@@ -38,7 +38,7 @@ class BuildInputFileSet : public oops::Application {
   virtual ~BuildInputFileSet() {}
 
   // -----------------------------------------------------------------------------
-  int execute(const eckit::Configuration & fullConfig, bool /* validate */) const {
+  int execute(const eckit::Configuration & fullConfig) const {
       // Get the observation time window
       const util::TimeWindow timeWindow(fullConfig.getSubConfiguration("time window"));
       oops::Log::info() << "Observation window: " << timeWindow << std::endl;
