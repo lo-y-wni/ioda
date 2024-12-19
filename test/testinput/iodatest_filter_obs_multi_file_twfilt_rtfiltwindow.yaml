@@ -15,11 +15,11 @@ obs space:
   obsdataout:
     engine:
       type: H5File
-      obsfile: "testoutput/filter_obs_multi_file_input_twfilt_rtfilt.nc4"
+      obsfile: "testoutput/filter_obs_multi_file_input_twfilt_rtfiltwindow.nc4"
 
 receipt time filter:
   accept window:
-    begin: "2024-01-10T00:00:00Z"
+    begin: "2024-01-10T00:02:30Z"
     end: "2024-01-10T00:03:40Z"
   variable name: "MetaData/r2d2ReceiptTime"
 
