@@ -23,6 +23,8 @@ template<> osdf::Datum<float>::Datum(const float& value):
            DatumBase(consts::eFloat), value_(value) {}
 template<> osdf::Datum<double>::Datum(const double& value):
            DatumBase(consts::eDouble), value_(value) {}
+template<> osdf::Datum<char>::Datum(const char& value):
+           DatumBase(consts::eChar), value_(value) {}
 template<> osdf::Datum<std::string>::Datum(const std::string& value):
            DatumBase(consts::eString), value_(value) {}
 
@@ -37,6 +39,7 @@ template const std::string osdf::Datum<std::int32_t>::getValueStr() const;
 template const std::string osdf::Datum<std::int64_t>::getValueStr() const;
 template const std::string osdf::Datum<float>::getValueStr() const;
 template const std::string osdf::Datum<double>::getValueStr() const;
+template const std::string osdf::Datum<char>::getValueStr() const;
 
 template<>
 const std::string osdf::Datum<std::string>::getValueStr() const {

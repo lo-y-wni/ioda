@@ -20,6 +20,7 @@ namespace consts {
     eInt64,
     eFloat,
     eDouble,
+    eChar,
     eString,
     eNumberOfDataTypes
   };

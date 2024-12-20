@@ -62,6 +62,11 @@ osdf::FrameRows::FrameRows(const FrameCols& frameCols) :
         appendNewColumn<double>(columnName, values, type);
         break;
       }
+      case consts::eChar: {
+        const std::vector<char>& values = funcs_.getDataValues<char>(data);
+        appendNewColumn<char>(columnName, values, type);
+        break;
+      }
       case consts::eString: {
         const std::vector<std::string>& values = funcs_.getDataValues<std::string>(data);
         appendNewColumn<std::string>(columnName, values, type);
@@ -116,6 +121,11 @@ void osdf::FrameRows::appendNewColumn(const std::string& name,
 }
 
 void osdf::FrameRows::appendNewColumn(const std::string& name,
+                                      const std::vector<char>& values) {
+  appendNewColumn(name, values, consts::eChar);
+}
+
+void osdf::FrameRows::appendNewColumn(const std::string& name,
                                       const std::vector<std::string>& values) {
   appendNewColumn(name, values, consts::eString);
 }
@@ -142,6 +152,10 @@ void osdf::FrameRows::getColumn(const std::string& name, std::vector<float>& val
 
 void osdf::FrameRows::getColumn(const std::string& name, std::vector<double>& values) const {
   getColumn<double>(name, values, consts::eDouble);
+}
+
+void osdf::FrameRows::getColumn(const std::string& name, std::vector<char>& values) const {
+  getColumn<char>(name, values, consts::eChar);
 }
 
 void osdf::FrameRows::getColumn(const std::string& name, std::vector<std::string>& values) const {
@@ -176,6 +190,11 @@ void osdf::FrameRows::setColumn(const std::string& name,
 void osdf::FrameRows::setColumn(const std::string& name,
                                 const std::vector<double>& data) const {
   setColumn<double>(name, data, consts::eDouble);
+}
+
+void osdf::FrameRows::setColumn(const std::string& name,
+                                const std::vector<char>& values) const {
+  setColumn<char>(name, values, consts::eChar);
 }
 
 void osdf::FrameRows::setColumn(const std::string& name,
@@ -237,6 +256,10 @@ void osdf::FrameRows::removeRow(const std::int64_t index) {
     oops::Log::error() << "ERROR: Row index \"" << index
                        << "\" is incompatible with current data frame." << std::endl;
   }
+}
+
+std::int8_t osdf::FrameRows::getColumnType(const std::string& name) const {
+  return data_.getType(data_.getIndex(name));
 }
 
 void osdf::FrameRows::sortRows(const std::string& columnName, const std::int8_t order) {

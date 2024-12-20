@@ -60,6 +60,11 @@ void osdf::FrameColsData::configColumns(const std::vector<ColumnMetadatum> colum
         data = funcs_.createData<double>(values);
         break;
       }
+      case consts::eChar: {
+        std::vector<char> values;
+        data = funcs_.createData<char>(values);
+        break;
+      }
       case consts::eString: {
         std::vector<std::string> values;
         data = funcs_.createData<std::string>(values);
@@ -112,6 +117,10 @@ void osdf::FrameColsData::appendNewRow(const DataRow& newRow) {
       }
       case consts::eDouble: {
         funcs_.addDatumValue<double>(data, datum);
+        break;
+      }
+      case consts::eChar: {
+        funcs_.addDatumValue<char>(data, datum);
         break;
       }
       case consts::eString: {
@@ -170,6 +179,10 @@ void osdf::FrameColsData::removeRow(const std::int64_t index) {
       }
       case consts::eDouble: {
         funcs_.removeDatum<double>(data, index);
+        break;
+      }
+      case consts::eChar: {
+        funcs_.removeDatum<char>(data, index);
         break;
       }
       case consts::eString: {
@@ -299,6 +312,10 @@ void osdf::FrameColsData::clear() {
       }
       case consts::eDouble: {
         funcs_.clearData<double>(data);
+        break;
+      }
+      case consts::eChar: {
+        funcs_.clearData<char>(data);
         break;
       }
       case consts::eString: {

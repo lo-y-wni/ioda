@@ -65,6 +65,7 @@ class FrameRows : public IFrame {
   void appendNewColumn(const std::string&, const std::vector<std::int64_t>&) override;
   void appendNewColumn(const std::string&, const std::vector<float>&) override;
   void appendNewColumn(const std::string&, const std::vector<double>&) override;
+  void appendNewColumn(const std::string&, const std::vector<char>&) override;
   void appendNewColumn(const std::string&, const std::vector<std::string>&) override;
 
   void getColumn(const std::string&, std::vector<std::int8_t>&) const override;
@@ -73,6 +74,7 @@ class FrameRows : public IFrame {
   void getColumn(const std::string&, std::vector<std::int64_t>&) const override;
   void getColumn(const std::string&, std::vector<float>&) const override;
   void getColumn(const std::string&, std::vector<double>&) const override;
+  void getColumn(const std::string&, std::vector<char>&) const override;
   void getColumn(const std::string&, std::vector<std::string>&) const override;
 
   void setColumn(const std::string&, const std::vector<std::int8_t>&) const override;
@@ -81,12 +83,17 @@ class FrameRows : public IFrame {
   void setColumn(const std::string&, const std::vector<std::int64_t>&) const override;
   void setColumn(const std::string&, const std::vector<float>&) const override;
   void setColumn(const std::string&, const std::vector<double>&) const override;
+  void setColumn(const std::string&, const std::vector<char>&) const override;
   void setColumn(const std::string&, const std::vector<std::string>&) const override;
+
+  bool hasColumn(const std::string& name) const override { return data_.columnExists(name); }
 
   void removeColumn(const std::string&) override;
   void removeColumn(const std::int32_t) override;
 
   void removeRow(const std::int64_t) override;
+
+  std::int8_t getColumnType(const std::string&) const override;
 
   void sortRows(const std::string&, const std::int8_t) override;
 

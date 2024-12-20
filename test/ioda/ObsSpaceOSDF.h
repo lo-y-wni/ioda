@@ -1,12 +1,12 @@
 /*
- * (C) Copyright 2018-2021 UCAR
+ * (C) Copyright 2024 UCAR
  *
  * This software is licensed under the terms of the Apache Licence Version 2.0
  * which can be obtained at http://www.apache.org/licenses/LICENSE-2.0.
  */
 
-#ifndef TEST_IODA_OBSSPACE_H_
-#define TEST_IODA_OBSSPACE_H_
+#ifndef TEST_IODA_OBSSPACEOSDF_H_
+#define TEST_IODA_OBSSPACEOSDF_H_
 
 #include <cmath>
 #include <set>
@@ -41,8 +41,14 @@ namespace ioda {
 namespace test {
 
 // -----------------------------------------------------------------------------
-
-class ObsSpaceTestFixture : private boost::noncopyable {
+//
+// Note that the ObsSpaceOSDFTestFixture class is a copy of the ObsSpaceTestFixture class,
+// but with some of the subtests commented-out. We will get the subtests passing one-by-one.
+// When all the subtests are working, this test can be deleted since it will again be identical
+// to ObsSpaceTestFixture.
+//
+// -----------------------------------------------------------------------------
+class ObsSpaceOSDFTestFixture : private boost::noncopyable {
  public:
   static ioda::ObsSpace & obspace(const std::size_t ii) {
     return *getInstance().ospaces_.at(ii);
@@ -60,12 +66,12 @@ class ObsSpaceTestFixture : private boost::noncopyable {
   }
 
  private:
-  static ObsSpaceTestFixture & getInstance() {
-    static ObsSpaceTestFixture theObsSpaceTestFixture;
+  static ObsSpaceOSDFTestFixture & getInstance() {
+    static ObsSpaceOSDFTestFixture theObsSpaceTestFixture;
     return theObsSpaceTestFixture;
   }
 
-  ObsSpaceTestFixture(): ospaces_() {
+  ObsSpaceOSDFTestFixture(): ospaces_() {
     const util::TimeWindow timeWindow
       (::test::TestEnvironment::config().getSubConfiguration("time window"));
 
@@ -79,7 +85,7 @@ class ObsSpaceTestFixture : private boost::noncopyable {
     }
   }
 
-  ~ObsSpaceTestFixture() {}
+  ~ObsSpaceOSDFTestFixture() {}
 
   std::vector<eckit::LocalConfiguration> configs_;
   std::vector<boost::shared_ptr<ioda::ObsSpace> > ospaces_;
@@ -88,7 +94,7 @@ class ObsSpaceTestFixture : private boost::noncopyable {
 // -----------------------------------------------------------------------------
 
 void testConstructor() {
-  typedef ObsSpaceTestFixture Test_;
+  typedef ObsSpaceOSDFTestFixture Test_;
 
   std::vector<eckit::LocalConfiguration> conf;
   ::test::TestEnvironment::config().get("observations", conf);
@@ -204,7 +210,7 @@ void testConstructor() {
 // -----------------------------------------------------------------------------
 
 void testGetDb() {
-  typedef ObsSpaceTestFixture Test_;
+  typedef ObsSpaceOSDFTestFixture Test_;
 
   std::vector<eckit::LocalConfiguration> conf;
   ::test::TestEnvironment::config().get("observations", conf);
@@ -417,7 +423,7 @@ void testGetDb() {
 // -----------------------------------------------------------------------------
 
 void testPutDb() {
-  typedef ObsSpaceTestFixture Test_;
+  typedef ObsSpaceOSDFTestFixture Test_;
 
   std::vector<eckit::LocalConfiguration> conf;
   ::test::TestEnvironment::config().get("observations", conf);
@@ -565,7 +571,7 @@ void testPutDb() {
 // -----------------------------------------------------------------------------
 
 void testPutGetChanSelect() {
-  typedef ObsSpaceTestFixture Test_;
+  typedef ObsSpaceOSDFTestFixture Test_;
 
   std::vector<eckit::LocalConfiguration> conf;
   ::test::TestEnvironment::config().get("observations", conf);
@@ -632,7 +638,7 @@ void testPutGetChanSelect() {
 // -----------------------------------------------------------------------------
 
 void testWriteableGroup() {
-  typedef ObsSpaceTestFixture Test_;
+  typedef ObsSpaceOSDFTestFixture Test_;
 
   std::string VarName("DummyVar");
 
@@ -681,7 +687,7 @@ void testWriteableGroup() {
 // -----------------------------------------------------------------------------
 
 void testMultiDimTransfer() {
-  typedef ObsSpaceTestFixture Test_;
+  typedef ObsSpaceOSDFTestFixture Test_;
 
   for (std::size_t jj = 0; jj < Test_::size(); ++jj) {
     // Set up a pointer to the ObsSpace object for convenience
@@ -769,7 +775,7 @@ void testMultiDimTransfer() {
 
 // Test the obsvariables(), initial_obsvariables() and derived_obsvariables() methods.
 void testObsVariables() {
-  typedef ObsSpaceTestFixture Test_;
+  typedef ObsSpaceOSDFTestFixture Test_;
 
   for (std::size_t jj = 0; jj < Test_::size(); ++jj) {
     const ioda::ObsSpace & Odb = Test_::obspace(jj);
@@ -792,7 +798,7 @@ void testObsVariables() {
 // Verify that for any derived simulated variable <var> a newly created ObsSpace has a variable
 // <var> in the ObsError group and that it is filled with missing values.
 void testDerivedObsError() {
-  typedef ObsSpaceTestFixture Test_;
+  typedef ObsSpaceOSDFTestFixture Test_;
 
   for (std::size_t jj = 0; jj < Test_::size(); ++jj) {
     const ioda::ObsSpace & Odb = Test_::obspace(jj);
@@ -814,17 +820,17 @@ void testDerivedObsError() {
 void testCleanup() {
   // This test removes the obsspaces and ensures that they evict their contents
   // to disk successfully.
-  typedef ObsSpaceTestFixture Test_;
+  typedef ObsSpaceOSDFTestFixture Test_;
 
   Test_::cleanup();
 }
 
 // -----------------------------------------------------------------------------
 
-class ObsSpace : public oops::Test {
+class ObsSpaceOSDF : public oops::Test {
  public:
-  ObsSpace() {}
-  virtual ~ObsSpace() {}
+  ObsSpaceOSDF() {}
+  virtual ~ObsSpaceOSDF() {}
 
  private:
   std::string testid() const override {return "test::ObsSpace<ioda::IodaTrait>";}
@@ -836,14 +842,14 @@ class ObsSpace : public oops::Test {
       { testConstructor(); });
     ts.emplace_back(CASE("ioda/ObsSpace/testGetDb")
       { testGetDb(); });
-    ts.emplace_back(CASE("ioda/ObsSpace/testPutDb")
-      { testPutDb(); });
-    ts.emplace_back(CASE("ioda/ObsSpace/testPutGetChanSelect")
-      { testPutGetChanSelect(); });
-    ts.emplace_back(CASE("ioda/ObsSpace/testWriteableGroup")
-      { testWriteableGroup(); });
-    ts.emplace_back(CASE("ioda/ObsSpace/testMultiDimTransfer")
-      { testMultiDimTransfer(); });
+    // ts.emplace_back(CASE("ioda/ObsSpace/testPutDb")
+    //   { testPutDb(); });
+    // ts.emplace_back(CASE("ioda/ObsSpace/testPutGetChanSelect")
+    //   { testPutGetChanSelect(); });
+    // ts.emplace_back(CASE("ioda/ObsSpace/testWriteableGroup")
+    //   { testWriteableGroup(); });
+    // ts.emplace_back(CASE("ioda/ObsSpace/testMultiDimTransfer")
+    //   { testMultiDimTransfer(); });
     ts.emplace_back(CASE("ioda/ObsSpace/testCleanup")
       { testCleanup(); });
   }
@@ -856,4 +862,4 @@ class ObsSpace : public oops::Test {
 }  // namespace test
 }  // namespace ioda
 
-#endif  // TEST_IODA_OBSSPACE_H_
+#endif  // TEST_IODA_OBSSPACEOSDF_H_

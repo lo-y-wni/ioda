@@ -36,6 +36,8 @@ template void osdf::FunctionsCols::addDatumValue<float>(const std::shared_ptr<Da
                                                         const std::shared_ptr<DatumBase>&) const;
 template void osdf::FunctionsCols::addDatumValue<double>(const std::shared_ptr<DataBase>&,
                                                         const std::shared_ptr<DatumBase>&) const;
+template void osdf::FunctionsCols::addDatumValue<char>(const std::shared_ptr<DataBase>&,
+                                                        const std::shared_ptr<DatumBase>&) const;
 template void osdf::FunctionsCols::addDatumValue<std::string>(const std::shared_ptr<DataBase>&,
                                                         const std::shared_ptr<DatumBase>&) const;
 
@@ -58,6 +60,8 @@ template void osdf::FunctionsCols::setDataValues<float>(
     const std::shared_ptr<DataBase>&, const std::vector<float>&) const;
 template void osdf::FunctionsCols::setDataValues<double>(
     const std::shared_ptr<DataBase>&, const std::vector<double>&) const;
+template void osdf::FunctionsCols::setDataValues<char>(
+    const std::shared_ptr<DataBase>&, const std::vector<char>&) const;
 template void osdf::FunctionsCols::setDataValues<std::string>(
     const std::shared_ptr<DataBase>&, const std::vector<std::string>&) const;
 
@@ -78,6 +82,8 @@ template void osdf::FunctionsCols::removeDatum<std::int64_t>(std::shared_ptr<Dat
 template void osdf::FunctionsCols::removeDatum<float>(std::shared_ptr<DataBase>&,
                                                            const std::int64_t) const;
 template void osdf::FunctionsCols::removeDatum<double>(std::shared_ptr<DataBase>&,
+                                                             const std::int64_t) const;
+template void osdf::FunctionsCols::removeDatum<char>(std::shared_ptr<DataBase>&,
                                                              const std::int64_t) const;
 template void osdf::FunctionsCols::removeDatum<std::string>(std::shared_ptr<DataBase>&,
                                                                  const std::int64_t) const;
@@ -110,6 +116,8 @@ template void osdf::FunctionsCols::sequenceIndices<float>(
     std::vector<std::int64_t>&, const std::vector<float>&, const std::int8_t) const;
 template void osdf::FunctionsCols::sequenceIndices<double>(
     std::vector<std::int64_t>&, const std::vector<double>&, const std::int8_t) const;
+template void osdf::FunctionsCols::sequenceIndices<char>(
+    std::vector<std::int64_t>&, const std::vector<char>&, const std::int8_t) const;
 template void osdf::FunctionsCols::sequenceIndices<std::string>(
     std::vector<std::int64_t>&, const std::vector<std::string>&, const std::int8_t) const;
 
@@ -138,6 +146,8 @@ template void osdf::FunctionsCols::reorderValues<float>(std::vector<std::int64_t
                                                         std::vector<float>&) const;
 template void osdf::FunctionsCols::reorderValues<double>(std::vector<std::int64_t>,
                                                          std::vector<double>&) const;
+template void osdf::FunctionsCols::reorderValues<char>(std::vector<std::int64_t>,
+                                                         std::vector<char>&) const;
 template void osdf::FunctionsCols::reorderValues<std::string>(std::vector<std::int64_t>,
                                                               std::vector<std::string>&) const;
 
@@ -192,6 +202,10 @@ template<typename T> void osdf::FunctionsCols::sliceRows(const osdf::IColsData* 
         sliceData<double>(newDataColumns, dataCol, indices);
         break;
       }
+      case consts::eChar: {
+        sliceData<char>(newDataColumns, dataCol, indices);
+        break;
+      }
       case consts::eString: {
         sliceData<std::string>(newDataColumns, dataCol, indices);
         break;
@@ -218,6 +232,9 @@ template void osdf::FunctionsCols::sliceRows<float>(const osdf::IColsData*,
 template void osdf::FunctionsCols::sliceRows<double>(const osdf::IColsData*,
     std::vector<std::shared_ptr<DataBase>>&, ColumnMetadata&,
     std::vector<std::int64_t>&, const std::string&, const std::int8_t, const double) const;
+template void osdf::FunctionsCols::sliceRows<char>(const osdf::IColsData*,
+    std::vector<std::shared_ptr<DataBase>>&, ColumnMetadata&,
+    std::vector<std::int64_t>&, const std::string&, const std::int8_t, const char) const;
 template void osdf::FunctionsCols::sliceRows<std::string>(const osdf::IColsData*,
     std::vector<std::shared_ptr<DataBase>>&, ColumnMetadata&,
     std::vector<std::int64_t>&, const std::string&, const std::int8_t, const std::string) const;
@@ -243,6 +260,8 @@ template const std::vector<float> osdf::FunctionsCols::getSlicedValues<float>(
          const std::vector<float>&, const std::vector<std::int64_t>&) const;
 template const std::vector<double> osdf::FunctionsCols::getSlicedValues<double>(
          const std::vector<double>&, const std::vector<std::int64_t>&) const;
+template const std::vector<char> osdf::FunctionsCols::getSlicedValues<char>(
+         const std::vector<char>&, const std::vector<std::int64_t>&) const;
 template const std::vector<std::string> osdf::FunctionsCols::getSlicedValues<std::string>(
          const std::vector<std::string>&, const std::vector<std::int64_t>&) const;
 
@@ -272,6 +291,9 @@ template void osdf::FunctionsCols::sliceData<float>(
     std::vector<std::shared_ptr<DataBase>>&, const std::shared_ptr<DataBase>&,
     const std::vector<std::int64_t>&) const;
 template void osdf::FunctionsCols::sliceData<double>(
+    std::vector<std::shared_ptr<DataBase>>&, const std::shared_ptr<DataBase>&,
+    const std::vector<std::int64_t>&) const;
+template void osdf::FunctionsCols::sliceData<char>(
     std::vector<std::shared_ptr<DataBase>>&, const std::shared_ptr<DataBase>&,
     const std::vector<std::int64_t>&) const;
 template void osdf::FunctionsCols::sliceData<std::string>(
@@ -314,6 +336,9 @@ template void osdf::FunctionsCols::addValueToData<float>(
 template void osdf::FunctionsCols::addValueToData<double>(
     std::vector<std::shared_ptr<osdf::DataBase>>&, const std::shared_ptr<DatumBase>&,
     const std::int8_t, const std::int64_t, const std::int32_t) const;
+template void osdf::FunctionsCols::addValueToData<char>(
+    std::vector<std::shared_ptr<osdf::DataBase>>&, const std::shared_ptr<DatumBase>&,
+    const std::int8_t, const std::int64_t, const std::int32_t) const;
 template void osdf::FunctionsCols::addValueToData<std::string>(
     std::vector<std::shared_ptr<osdf::DataBase>>&, const std::shared_ptr<DatumBase>&,
     const std::int8_t, const std::int64_t, const std::int32_t) const;
@@ -330,6 +355,7 @@ template void osdf::FunctionsCols::clearData<std::int32_t>(std::shared_ptr<DataB
 template void osdf::FunctionsCols::clearData<std::int64_t>(std::shared_ptr<DataBase>&) const;
 template void osdf::FunctionsCols::clearData<float>(std::shared_ptr<DataBase>&) const;
 template void osdf::FunctionsCols::clearData<double>(std::shared_ptr<DataBase>&) const;
+template void osdf::FunctionsCols::clearData<char>(std::shared_ptr<DataBase>&) const;
 template void osdf::FunctionsCols::clearData<std::string>(std::shared_ptr<DataBase>&) const;
 
 template<typename T> const std::int16_t osdf::FunctionsCols::getSize(
@@ -349,6 +375,8 @@ template const std::int16_t osdf::FunctionsCols::getSize<std::int64_t>(
 template const std::int16_t osdf::FunctionsCols::getSize<float>(
          const std::shared_ptr<DataBase>&, const std::int64_t) const;
 template const std::int16_t osdf::FunctionsCols::getSize<double>(
+         const std::shared_ptr<DataBase>&, const std::int64_t) const;
+template const std::int16_t osdf::FunctionsCols::getSize<char>(
          const std::shared_ptr<DataBase>&, const std::int64_t) const;
 template const std::int16_t osdf::FunctionsCols::getSize<std::string>(
          const std::shared_ptr<DataBase>&, const std::int64_t) const;
@@ -374,6 +402,8 @@ template std::int8_t osdf::FunctionsCols::hasData<std::int64_t>(
 template std::int8_t osdf::FunctionsCols::hasData<float>(
          const std::shared_ptr<DataBase>&) const;
 template std::int8_t osdf::FunctionsCols::hasData<double>(
+         const std::shared_ptr<DataBase>&) const;
+template std::int8_t osdf::FunctionsCols::hasData<char>(
          const std::shared_ptr<DataBase>&) const;
 template std::int8_t osdf::FunctionsCols::hasData<std::string>(
          const std::shared_ptr<DataBase>&) const;

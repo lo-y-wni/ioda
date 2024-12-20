@@ -36,6 +36,7 @@
 #include "oops/util/DateTime.h"
 #include "oops/util/Logger.h"
 #include "oops/util/TimeWindow.h"
+#include "ioda/containers/IFrame.h"
 #include "ioda/core/IodaUtils.h"
 #include "ioda/distribution/Distribution.h"
 #include "ioda/Misc/Dimensions.h"
@@ -371,8 +372,15 @@ namespace ioda {
         const std::vector<std::size_t> & index() const {return indx_;}
 
         /// \brief return true if variable `name` exists in group `group` or (unless `skipDerived`
-        /// is set to true) `"Derived" + `group`.
+        /// is set to true) `"Derived" + `group`. Also returns true if ObsSpace is empty.
+        /// Backward compatible with names with channel suffixes.
         bool has(const std::string & group, const std::string & name,
+                 bool skipDerived = false) const;
+
+        /// \brief return true if variable `name` exists in group `group` or (unless `skipDerived`
+        /// is set to true) `"Derived" + `group` in the ObsSpace container.
+        /// (Returns false if ObsSpace is empty.)
+        bool strictHas(const std::string & group, const std::string & name,
                  bool skipDerived = false) const;
 
         /// \brief return data type for group/variable
@@ -611,8 +619,11 @@ namespace ioda {
         ///        to channel index (consecutive, starting from zero).
         std::map<int, int> chan_num_to_index_;
 
-        /// \brief observation data store
+        /// \brief legacy observation data store
         ObsGroup obs_group_;
+
+        /// \brief pointer to DataFrame observation data store
+        std::unique_ptr<osdf::IFrame> osdf_;
 
         /// \brief obs io parameters
         ObsSpaceParameters obs_params_;
@@ -896,6 +907,14 @@ namespace ioda {
         /// of locations from the data.
         /// \param keepLocs boolean vector, true in entries where that location is kept
         void adjustDataMembersAfterReduce(const std::vector<bool> & keepLocs);
+
+        /// \brief Encapsulate logic to prefer "Derived" group over the main group
+        /// \param base group name
+        /// \param variable name
+        /// \param flag to skip the "Derived" group
+        std::string groupToUse(const std::string & group,
+                               const std::string & variable,
+                               bool skipDerived) const;
     };
 
 }  // namespace ioda

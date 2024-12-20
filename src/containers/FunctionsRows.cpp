@@ -30,6 +30,8 @@ template const float osdf::FunctionsRows::getDatumValue<float>(
                                                 const std::shared_ptr<DatumBase>&) const;
 template const double osdf::FunctionsRows::getDatumValue<double>(
                                                 const std::shared_ptr<DatumBase>&) const;
+template const char osdf::FunctionsRows::getDatumValue<char>(
+                                                const std::shared_ptr<DatumBase>&) const;
 template const std::string osdf::FunctionsRows::getDatumValue<std::string>(
                                                 const std::shared_ptr<DatumBase>&) const;
 
@@ -51,5 +53,7 @@ template void osdf::FunctionsRows::setDatumValue<float>(
               const std::shared_ptr<osdf::DatumBase>&, const float&) const;
 template void osdf::FunctionsRows::setDatumValue<double>(
               const std::shared_ptr<osdf::DatumBase>&, const double&) const;
+template void osdf::FunctionsRows::setDatumValue<char>(
+              const std::shared_ptr<osdf::DatumBase>&, const char&) const;
 template void osdf::FunctionsRows::setDatumValue<std::string>(
               const std::shared_ptr<osdf::DatumBase>&, const std::string&) const;

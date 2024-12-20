@@ -32,6 +32,9 @@
 #include "oops/util/Random.h"
 #include "oops/util/stringFunctions.h"
 
+#include "ioda/containers/Constants.h"
+#include "ioda/containers/FrameCols.h"
+#include "ioda/containers/FrameRows.h"
 #include "ioda/Copying.h"
 #include "ioda/distribution/Accumulator.h"
 #include "ioda/distribution/DistributionFactory.h"
@@ -64,6 +67,28 @@ bool extractChannelSuffixIfPresent(const std::string &name,
         return true;
     }
     return false;
+}
+
+// -----------------------------------------------------------------------------
+std::vector<float> lats = {-65.0, -66.6, -67.2, -68.6, -69.1,
+                            -70.9, -71.132, -72.56, -73.0, -73.1};
+std::vector<float> lons = {120.0, 121.1, 122.2, 123.3, 124.4,
+                            125.5, 126.6, 127.7, 128.8, 128.9};
+std::vector<std::string> statIds = {"00001", "00001", "00002", "00001", "00004",
+                                    "00002", "00005", "00005", "00009", "00009"};
+std::vector<std::int32_t> channels = {10, 10, 11, 11, 12, 12, 11, 15, 11, 13};
+std::vector<float> temps = {-10.231, -15.68, -15.54, -14.98, -16.123,
+                            -19.11, -22.3324, -22.667, -25.6568, -25.63211};
+std::vector<std::int32_t> times = {1710460225, 1710460225, 1710460225, 1710460225, 1710460226,
+                                    1710460226, 1710460226, 1710460226, 1710460226, 1710460227};
+
+void testPopulateFrame(const std::unique_ptr<osdf::IFrame> & osdf) {
+  osdf->appendNewColumn("MetaData/latitude", lats);
+  osdf->appendNewColumn("MetaData/longitude", lons);
+  osdf->appendNewColumn("StatId", statIds);
+  osdf->appendNewColumn("channel", channels);
+  osdf->appendNewColumn("temp", temps);
+  osdf->appendNewColumn("time", times);
 }
 
 }  // namespace
@@ -143,14 +168,14 @@ ObsSpace::ObsSpace(const eckit::Configuration & config, const eckit::mpi::Comm &
         print_run_stats_ = std::strtol(iodaPrintRunstats, nullptr, 10);
     }
 
+    // Read container toggle flag
+    use_dataframe_ = obs_params_.top_level_.useDataFrame.value();
+
     // Read the obs space name
     obsname_ = obs_params_.top_level_.obsSpaceName;
     if (print_run_stats_ > 0) {
         util::printRunStats("ioda::ObsSpace::ObsSpace: start " + obsname_ + ": ", true, comm);
     }
-
-    // Read container toggle flag
-    use_dataframe_ = obs_params_.top_level_.useDataFrame.value();
 
     // Create an MPI distribution object
     const auto & distParams = obs_params_.top_level_.distribution.value().params.value();
@@ -160,111 +185,128 @@ ObsSpace::ObsSpace(const eckit::Configuration & config, const eckit::mpi::Comm &
     std::vector<eckit::LocalConfiguration> obsDataInConfigs =
         expandInputFileConfigs(obs_params_.top_level_.obsDataIn.value());
 
-    // Load the obs space data (into obs_group_) from the obs source (file or generator)
-    dim_info_.set_dim_size(ObsDimensionId::Location, 0);
-    indx_.clear();
-    recnums_.clear();
-    ObsGroup tempObsGroup;
-    ObsSourceStats obsSourceStats;
-    for (int i = 0; i < obsDataInConfigs.size(); ++i) {
-        load(obsDataInConfigs[i], tempObsGroup, obsSourceStats);
-        appendObsGroup(tempObsGroup, obsSourceStats);
-    }
-
-    // Assign Location variable with the source index numbers that were kept
-    assignLocationValues();
-
-    // The distribution object has a notion of patch obs which are the observations
-    // "owned" by the corresponding obs space. When an overlapping distribution (eg, Halo)
-    // is used, there is a need to identify all the unique obs (ie, locations) for functions
-    // that access obs across the MPI tasks. Computing an ObsVector dot product, and
-    // output IO are two examples. The ownership (patch) marks which obs participate in
-    // the MPI distributed functions, and collectively make up a total set of obs that contain
-    // no duplicates.
-    //
-    // Take the Halo distribution for an example. Each MPI task holds locations (obs) that
-    // are within a horizontal radius from a given center point. This brings up the situation
-    // where multiple obs spaces (geographic neighbors) can both contain the same locations
-    // since their spatial coverages can overlap. The ownership is given to the MPI task whose
-    // center is closer to that location. That way one MPI task owns the obs and the other
-    // does not which is then used to make sure the duplicate location is not used in
-    // MPI collective operations (such as the dot product function).
-    dist_->computePatchLocs();
-
-    // Get list of observed variables
-    // Either read from yaml list, use all variables in input file if 'obsdatain' is specified
-    // or set to simulated variables if 'generate' is specified.
-    const bool usingObsGenerator =
-      ((obs_params_.top_level_.obsDataIn.value().engine.value()
-                   .engineParameters.value().type.value() == "GenList") ||
-       (obs_params_.top_level_.obsDataIn.value().engine.value()
-                   .engineParameters.value().type.value() == "GenRandom"));
-
-    if (obs_params_.top_level_.ObservedVars.value().size()
-            + obs_params_.top_level_.derivedSimVars.value().size() != 0) {
-      // Read from yaml
-      obsvars_ = obs_params_.top_level_.ObservedVars;
-    } else if (usingObsGenerator) {
-      obsvars_ = obs_params_.top_level_.simVars;
+    if (use_dataframe_) {
+        osdf_.reset(new osdf::FrameCols());
+        if (obsDataInConfigs.size() > 0) {
+            ObsDataInParameters readerParams;
+            readerParams.deserialize(obsDataInConfigs[0]);
+            if (readerParams.prepType.value() == "hardcoded") {
+                testPopulateFrame(osdf_);
+                source_nlocs_ = gnlocs_ = 10;
+                nrecs_ = 5;
+                dim_info_.set_dim_size(ObsDimensionId::Location, 10);
+                recnums_.clear();
+                recnums_ = {0, 0, 1, 0, 2, 1, 3, 3, 4, 4};
+            }
+            osdf_->print();
+        }
     } else {
-      // Use all variables found in the ObsValue group in the file. If there is no ObsValue
-      // group (rare), then copy the simulated variables list.
-      if (obs_group_.exists("ObsValue")) {
-        Group obsValueGroup = obs_group_.open("ObsValue");
-        const std::vector<std::string>
-                allObsVars = obsValueGroup.listObjects<ObjectType::Variable>(false);
-        // ToDo (JAW): Get the channels from the input file (currently using the ones from simVars)
-        std::vector<int> channels = obs_params_.top_level_.simVars.value().channels();
-        oops::ObsVariables obVars(allObsVars, channels);
-        obsvars_ = obVars;
-      } else {
-        obsvars_ = obs_params_.top_level_.simVars;
-      }
+        // Load the obs space data (into obs_group_) from the obs source (file or generator)
+        dim_info_.set_dim_size(ObsDimensionId::Location, 0);
+        indx_.clear();
+        recnums_.clear();
+        ObsGroup tempObsGroup;
+        ObsSourceStats obsSourceStats;
+        for (int i = 0; i < obsDataInConfigs.size(); ++i) {
+            load(obsDataInConfigs[i], tempObsGroup, obsSourceStats);
+            appendObsGroup(tempObsGroup, obsSourceStats);
+        }
+
+        // Assign Location variable with the source index numbers that were kept
+        assignLocationValues();
+
+        // The distribution object has a notion of patch obs which are the observations
+        // "owned" by the corresponding obs space. When an overlapping distribution (eg, Halo)
+        // is used, there is a need to identify all the unique obs (ie, locations) for functions
+        // that access obs across the MPI tasks. Computing an ObsVector dot product, and
+        // output IO are two examples. The ownership (patch) marks which obs participate in
+        // the MPI distributed functions, and collectively make up a total set of obs that contain
+        // no duplicates.
+        //
+        // Take the Halo distribution for an example. Each MPI task holds locations (obs) that
+        // are within a horizontal radius from a given center point. This brings up the situation
+        // where multiple obs spaces (geographic neighbors) can both contain the same locations
+        // since their spatial coverages can overlap. The ownership is given to the MPI task whose
+        // center is closer to that location. That way one MPI task owns the obs and the other
+        // does not which is then used to make sure the duplicate location is not used in
+        // MPI collective operations (such as the dot product function).
+        dist_->computePatchLocs();
+
+        // Get list of observed variables
+        // Either read from yaml list, use all variables in input file if 'obsdatain' is specified
+        // or set to simulated variables if 'generate' is specified.
+        const bool usingObsGenerator =
+            ((obs_params_.top_level_.obsDataIn.value().engine.value()
+                        .engineParameters.value().type.value() == "GenList") ||
+            (obs_params_.top_level_.obsDataIn.value().engine.value()
+                        .engineParameters.value().type.value() == "GenRandom"));
+
+        if (obs_params_.top_level_.ObservedVars.value().size()
+                + obs_params_.top_level_.derivedSimVars.value().size() != 0) {
+            // Read from yaml
+            obsvars_ = obs_params_.top_level_.ObservedVars;
+        } else if (usingObsGenerator) {
+            obsvars_ = obs_params_.top_level_.simVars;
+        } else {
+            // Use all variables found in the ObsValue group in the file. If there is no ObsValue
+            // group (rare), then copy the simulated variables list.
+            if (obs_group_.exists("ObsValue")) {
+                Group obsValueGroup = obs_group_.open("ObsValue");
+                const std::vector<std::string>
+                        allObsVars = obsValueGroup.listObjects<ObjectType::Variable>(false);
+                // ToDo (JAW): Get the channels from the input file (currently using the ones from
+                //             simVars)
+                std::vector<int> channels = obs_params_.top_level_.simVars.value().channels();
+                oops::ObsVariables obVars(allObsVars, channels);
+                obsvars_ = obVars;
+            } else {
+                obsvars_ = obs_params_.top_level_.simVars;
+            }
+        }
+
+        // Store the intial list of variables read from the yaml of input file.
+        initial_obsvars_ = obsvars_;
+
+        // Add derived varible names to observed variables list
+        if (obs_params_.top_level_.derivedSimVars.value().size() != 0) {
+            // As things stand, this assert cannot fail, since both variables take the list of
+            // channels from the same "channels" YAML option.
+            ASSERT(obs_params_.top_level_.derivedSimVars.value().channels() == obsvars_.channels());
+            obsvars_ += obs_params_.top_level_.derivedSimVars;
+            derived_obsvars_ = obs_params_.top_level_.derivedSimVars;
+        }
+
+        // Get list of variables to be simulated
+        assimvars_ = obs_params_.top_level_.simVars;
+
+
+        oops::Log::info() << this->obsname() << " processed vars: " << obsvars_ << std::endl;
+        oops::Log::info() << this->obsname() << " assimilated vars: " << assimvars_ << std::endl;
+
+        for (size_t jv = 0; jv < assimvars_.size(); ++jv) {
+            if (!obsvars_.has(assimvars_[jv])) {
+                throw eckit::UserError(assimvars_[jv] + " is specified as a simulated variable"
+                                        " but it has not been specified as an observed or"
+                                        " a derived variable." , Here());
+            }
+        }
+
+        // Construct the recidx_ map
+        buildRecIdx();
+
+        fillChanNumToIndexMap();
+
+        if (obs_params_.top_level_.obsExtend.value() != boost::none) {
+            extendObsSpace(*(obs_params_.top_level_.obsExtend.value()));
+        }
+
+        createMissingObsErrors();
+
+        oops::Log::debug() << obsname() << ": " << globalNumLocsOutsideTimeWindow()
+        << " observations are outside of time window out of " << sourceNumLocs() << std::endl;
+        oops::Log::debug() << obsname() << ": " << globalNumLocsRejectQC()
+        << " observations were rejected by QC checks out of " << sourceNumLocs() << std::endl;
     }
-
-    // Store the intial list of variables read from the yaml of input file.
-    initial_obsvars_ = obsvars_;
-
-    // Add derived varible names to observed variables list
-    if (obs_params_.top_level_.derivedSimVars.value().size() != 0) {
-      // As things stand, this assert cannot fail, since both variables take the list of channels
-      // from the same "channels" YAML option.
-      ASSERT(obs_params_.top_level_.derivedSimVars.value().channels() == obsvars_.channels());
-      obsvars_ += obs_params_.top_level_.derivedSimVars;
-      derived_obsvars_ = obs_params_.top_level_.derivedSimVars;
-    }
-
-    // Get list of variables to be simulated
-    assimvars_ = obs_params_.top_level_.simVars;
-
-
-    oops::Log::info() << this->obsname() << " processed vars: " << obsvars_ << std::endl;
-    oops::Log::info() << this->obsname() << " assimilated vars: " << assimvars_ << std::endl;
-
-    for (size_t jv = 0; jv < assimvars_.size(); ++jv) {
-      if (!obsvars_.has(assimvars_[jv])) {
-          throw eckit::UserError(assimvars_[jv] + " is specified as a simulated variable"
-                                 " but it has not been specified as an observed or"
-                                 " a derived variable." , Here());
-      }
-    }
-
-    // Construct the recidx_ map
-    buildRecIdx();
-
-    fillChanNumToIndexMap();
-
-    if (obs_params_.top_level_.obsExtend.value() != boost::none) {
-        extendObsSpace(*(obs_params_.top_level_.obsExtend.value()));
-    }
-
-    createMissingObsErrors();
-
-    oops::Log::debug() << obsname() << ": " << globalNumLocsOutsideTimeWindow()
-      << " observations are outside of time window out of " << sourceNumLocs() << std::endl;
-    oops::Log::debug() << obsname() << ": " << globalNumLocsRejectQC()
-      << " observations were rejected by QC checks out of " << sourceNumLocs() << std::endl;
-
     oops::Log::trace() << "ObsSpace::ObsSpace constructed name = " << obsname() << std::endl;
     if (print_run_stats_ > 0) {
         util::printRunStats("ioda::ObsSpace::ObsSpace: end " + obsname_ + ": ", true, comm);
@@ -356,21 +398,45 @@ std::string ObsSpace::obs_sort_order() const {
 /*!
  * \details This method checks for the existence of the group, name combination
  *          in the obs container. If the combination exists, "true" is returned,
- *          otherwise "false" is returned.
+ *          otherwise "false" is returned. Returns false if the ObsSpace is empty.
+ *          Searches for name without any alteration for channel suffixes.
+ *          Unless skipDerived is true, checks for the existence of both "Derived"
+ *          and non-"Derived" groups, and returns true if either group/name is present.
+ */
+bool ObsSpace::strictHas(const std::string & group, const std::string & name,
+                         bool skipDerived) const {
+    bool returnVal = false;
+    if (use_dataframe_) {
+        returnVal = osdf_->hasColumn(fullVarName(group, name)) ||
+                (!skipDerived && osdf_->hasColumn(fullVarName("Derived" + group, name)));
+    } else {
+        returnVal = obs_group_.vars.exists(fullVarName(group, name)) ||
+            (!skipDerived && obs_group_.vars.exists(fullVarName("Derived" + group, name)));
+    }
+    return returnVal;
+}
+
+// -----------------------------------------------------------------------------
+/*!
+ * \details This method checks for the existence of the group, name combination
+ *          in the obs container. If the combination exists, "true" is returned,
+ *          otherwise "false" is returned. Also returns true if the ObsSpace is empty.
+ *          Backward compatible with names with channel suffixes.
  */
 bool ObsSpace::has(const std::string & group, const std::string & name, bool skipDerived) const {
+    bool returnVal = false;
     // For an empty obs space, make it appear that any variable exists.
     if (this->empty()) {
-        return true;
+        returnVal = true;
     } else {
         // For backward compatibility, recognize and handle appropriately variable names with
         // channel suffixes.
         std::string nameToUse;
         std::vector<int> chanSelectToUse;
         splitChanSuffix(group, name, { }, nameToUse, chanSelectToUse, skipDerived);
-        return obs_group_.vars.exists(fullVarName(group, nameToUse)) ||
-          (!skipDerived && obs_group_.vars.exists(fullVarName("Derived" + group, nameToUse)));
+        returnVal = strictHas(group, nameToUse, skipDerived);
     }
+    return returnVal;
 }
 
 // -----------------------------------------------------------------------------
@@ -385,56 +451,82 @@ ObsDtype ObsSpace::dtype(const std::string & group, const std::string & name,
     if (this->empty()) {
         VarType = ObsDtype::Empty;
     } else {
-        // For backward compatibility, recognize and handle appropriately variable names with
-        // channel suffixes.
-        std::string nameToUse;
-        std::vector<int> chanSelectToUse;
-        splitChanSuffix(group, name, { }, nameToUse, chanSelectToUse, skipDerived);
+        if (use_dataframe_) {
+            switch (osdf_->getColumnType(fullVarName(group, name))) {
+                case osdf::consts::eDataTypes::eInt8:
+                case osdf::consts::eDataTypes::eInt16:
+                case osdf::consts::eDataTypes::eInt32:
+                    VarType = ObsDtype::Integer;
+                    break;
+                case osdf::consts::eDataTypes::eInt64:
+                    VarType = ObsDtype::Integer_64;
+                    break;
+                case osdf::consts::eDataTypes::eFloat:
+                case osdf::consts::eDataTypes::eDouble:
+                    VarType = ObsDtype::Float;
+                    break;
+                case osdf::consts::eDataTypes::eString:
+                    VarType = ObsDtype::String;
+                    break;
+                case osdf::consts::eDataTypes::eChar:
+                    VarType = ObsDtype::Bool;
+                    break;
+                default:
+                    VarType = ObsDtype::None;
+                    break;
+            }
+        } else {
+            // For backward compatibility, recognize and handle appropriately variable names with
+            // channel suffixes.
+            std::string nameToUse;
+            std::vector<int> chanSelectToUse;
+            splitChanSuffix(group, name, { }, nameToUse, chanSelectToUse, skipDerived);
 
-        std::string groupToUse = "Derived" + group;
-        if (skipDerived || !obs_group_.vars.exists(fullVarName(groupToUse, nameToUse)))
-          groupToUse = group;
+            std::string groupToUse = this->groupToUse(group, nameToUse, skipDerived);
 
-        if (has(groupToUse, nameToUse, skipDerived)) {
-            const std::string varNameToUse = fullVarName(groupToUse, nameToUse);
-            Variable var = obs_group_.vars.open(varNameToUse);
-            VarUtils::switchOnSupportedVariableType(
-                  var,
-                  [&] (int)   {
-                      VarType = ObsDtype::Integer;
-                  },
-                  [&] (int64_t)   {
-                      try {
-                          // TODO(srh) Workaround to cover when datetime was stored
-                          // as a util::DateTime object (back when the obs space container
-                          // was a boost::multiindex container). For now, ioda accepts
-                          // int64_t offset times with its epoch datetime representation.
-                          const util::DateTime epoch = ioda::getEpochAsDtime(var);
-                          VarType = ObsDtype::DateTime;
-                      } catch (ioda::Exception&) {
-                          VarType = ObsDtype::Integer_64;
-                      }
-                  },
-                  [&] (float) {
-                      VarType = ObsDtype::Float;
-                  },
-                  [&] (std::string) {
-                      if ((group == "MetaData") && (nameToUse == "datetime")) {
-                          // TODO(srh) Workaround to cover when datetime was stored
-                          // as a util::DateTime object (back when the obs space container
-                          // was a boost::multiindex container). For now ioda accepts
-                          // string datetime representation.
-                          VarType = ObsDtype::DateTime;
-                      } else {
-                          VarType = ObsDtype::String;
-                      }
-                  },
-                  [&] (char) {
-                      VarType = ObsDtype::Bool;
-                  },
-                  VarUtils::ThrowIfVariableIsOfUnsupportedType(varNameToUse));
-        }
-    }
+            // TODO(vahl): Remove inefficiency here that "has" call is unnecessary if derived group
+            //             was returned by groupToUse above. It's already been verified to exist.
+            if (has(groupToUse, nameToUse, skipDerived)) {
+                const std::string varNameToUse = fullVarName(groupToUse, nameToUse);
+                Variable var = obs_group_.vars.open(varNameToUse);
+                VarUtils::switchOnSupportedVariableType(
+                    var,
+                    [&] (int)   {
+                        VarType = ObsDtype::Integer;
+                    },
+                    [&] (int64_t)   {
+                        try {
+                            // TODO(srh) Workaround to cover when datetime was stored
+                            // as a util::DateTime object (back when the obs space container
+                            // was a boost::multiindex container). For now, ioda accepts
+                            // int64_t offset times with its epoch datetime representation.
+                            const util::DateTime epoch = ioda::getEpochAsDtime(var);
+                            VarType = ObsDtype::DateTime;
+                        } catch (ioda::Exception&) {
+                            VarType = ObsDtype::Integer_64;
+                        }
+                    },
+                    [&] (float) {
+                        VarType = ObsDtype::Float;
+                    },
+                    [&] (std::string) {
+                        if ((group == "MetaData") && (nameToUse == "datetime")) {
+                            // TODO(srh) Workaround to cover when datetime was stored
+                            // as a util::DateTime object (back when the obs space container
+                            // was a boost::multiindex container). For now ioda accepts
+                            // string datetime representation.
+                            VarType = ObsDtype::DateTime;
+                        } else {
+                            VarType = ObsDtype::String;
+                        }
+                    },
+                    [&] (char) {
+                        VarType = ObsDtype::Bool;
+                    },
+                    VarUtils::ThrowIfVariableIsOfUnsupportedType(varNameToUse));
+            }  // has()
+        }  // !use_dataframe_
+    }  // !empty()
     return VarType;
 }
 
@@ -993,44 +1085,46 @@ void ObsSpace::loadVar(const std::string & group, const std::string & name,
     splitChanSuffix(group, name, chanSelect, nameToUse, chanSelectToUse);
 
     // Prefer variables from Derived* groups.
-    std::string groupToUse = "Derived" + group;
-    if (skipDerived || !obs_group_.vars.exists(fullVarName(groupToUse, nameToUse)))
-      groupToUse = group;
+    std::string groupToUse = this->groupToUse(group, nameToUse, skipDerived);
 
-    // Try to open the variable.
-    ioda::Variable var = obs_group_.vars.open(fullVarName(groupToUse, nameToUse));
+    if (use_dataframe_) {
+        osdf_->getColumn(fullVarName(groupToUse, nameToUse), varValues);
+    } else {
+        // Try to open the variable.
+        ioda::Variable var = obs_group_.vars.open(fullVarName(groupToUse, nameToUse));
 
-    std::string ChannelVarName = this->get_dim_name(ObsDimensionId::Channel);
+        std::string ChannelVarName = this->get_dim_name(ObsDimensionId::Channel);
 
-    // In the following code, assume that if a variable has channels, the
-    // Channel dimension will be the second dimension.
-    if (obs_group_.vars.exists(ChannelVarName)) {
-        Variable ChannelVar = obs_group_.vars.open(ChannelVarName);
-        if (var.getDimensions().dimensionality > 1) {
-            if (var.isDimensionScaleAttached(1, ChannelVar) &&
-               (chanSelectToUse.size() > 0)) {
-                // This variable has Channel as the second dimension, and channel
-                // selection has been specified. Build selection objects based on the
-                // channel numbers. For now, select all locations (first dimension).
-                const std::size_t ChannelDimIndex = 1;
-                Selection memSelect;
-                Selection obsGroupSelect;
-                const std::size_t numElements = createChannelSelections(
-                      var, ChannelDimIndex, chanSelectToUse, memSelect, obsGroupSelect);
+        // In the following code, assume that if a variable has channels, the
+        // Channel dimension will be the second dimension.
+        if (obs_group_.vars.exists(ChannelVarName)) {
+            Variable ChannelVar = obs_group_.vars.open(ChannelVarName);
+            if (var.getDimensions().dimensionality > 1) {
+                if (var.isDimensionScaleAttached(1, ChannelVar) &&
+                (chanSelectToUse.size() > 0)) {
+                    // This variable has Channel as the second dimension, and channel
+                    // selection has been specified. Build selection objects based on the
+                    // channel numbers. For now, select all locations (first dimension).
+                    const std::size_t ChannelDimIndex = 1;
+                    Selection memSelect;
+                    Selection obsGroupSelect;
+                    const std::size_t numElements = createChannelSelections(
+                        var, ChannelDimIndex, chanSelectToUse, memSelect, obsGroupSelect);
 
-                var.read<VarType>(varValues, memSelect, obsGroupSelect);
-                varValues.resize(numElements);
+                    var.read<VarType>(varValues, memSelect, obsGroupSelect);
+                    varValues.resize(numElements);
+                } else {
+                // Not a radiance variable, just read in the whole variable
+                var.read<VarType>(varValues);
+                }
             } else {
-              // Not a radiance variable, just read in the whole variable
-              var.read<VarType>(varValues);
+                // Not a radiance variable, just read in the whole variable
+                var.read<VarType>(varValues);
             }
         } else {
             // Not a radiance variable, just read in the whole variable
             var.read<VarType>(varValues);
         }
-    } else {
-        // Not a radiance variable, just read in the whole variable
-        var.read<VarType>(varValues);
     }
 }
 
@@ -1188,9 +1282,7 @@ void ObsSpace::splitChanSuffix(const std::string & group, const std::string & na
     chanSelectToUse = chanSelect;
     // For backward compatibility, recognize and handle appropriately variable names with
     // channel suffixes.
-    if (chanSelect.empty() &&
-        !obs_group_.vars.exists(fullVarName(group, name)) &&
-        (skipDerived || !obs_group_.vars.exists(fullVarName("Derived" + group, name)))) {
+    if (chanSelect.empty() && !strictHas(group, name, skipDerived)) {
         int channelNumber;
         if (extractChannelSuffixIfPresent(name, nameToUse, channelNumber))
             chanSelectToUse = {channelNumber};
@@ -1709,6 +1801,24 @@ void ObsSpace::adjustDataMembersAfterReduce(const std::vector<bool> & keepLocs) 
     // Rebuild the recidx_ data member using the newly adjusted indx_ and recnums_
     // data members.
     buildRecIdx();
+}
+
+std::string ObsSpace::groupToUse(const std::string & group,
+                                 const std::string & name,
+                                 bool skipDerived) const {
+    std::string groupToUse = "Derived" + group;
+    if (skipDerived) {
+        groupToUse = group;
+    } else {
+        if (use_dataframe_) {
+            if (!osdf_->hasColumn(fullVarName(groupToUse, name)))
+                groupToUse = group;
+        } else {
+            if (!obs_group_.vars.exists(fullVarName(groupToUse, name)))
+                groupToUse = group;
+        }
+    }
+    return groupToUse;
 }
 
 }  // namespace ioda

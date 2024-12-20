@@ -48,6 +48,8 @@ template void osdf::Functions::addColumnToRow<float>(IFrameData* data, DataRow& 
     std::int8_t& isValid, std::int32_t&, const float param) const;
 template void osdf::Functions::addColumnToRow<double>(IFrameData* data, DataRow& row,
     std::int8_t& isValid, std::int32_t&, const double param) const;
+template void osdf::Functions::addColumnToRow<char>(IFrameData* data, DataRow& row,
+    std::int8_t& isValid, std::int32_t&, const char param) const;
 template void osdf::Functions::addColumnToRow<std::string>(IFrameData* data, DataRow& row,
     std::int8_t& isValid, std::int32_t&, const std::string param) const;
 
@@ -70,6 +72,8 @@ template const std::shared_ptr<osdf::DataBase>
 template const std::shared_ptr<osdf::DataBase>
     osdf::Functions::createData<double>(const std::vector<double>&) const;
 template const std::shared_ptr<osdf::DataBase>
+    osdf::Functions::createData<char>(const std::vector<char>&) const;
+  template const std::shared_ptr<osdf::DataBase>
     osdf::Functions::createData<std::string>(const std::vector<std::string>&) const;
 
 template<>
@@ -101,6 +105,8 @@ template const std::shared_ptr<osdf::DatumBase>
     osdf::Functions::createDatum<float>(const float) const;
 template const std::shared_ptr<osdf::DatumBase>
     osdf::Functions::createDatum<double>(const double) const;
+template const std::shared_ptr<osdf::DatumBase>
+    osdf::Functions::createDatum<char>(const char) const;
 template const std::shared_ptr<osdf::DatumBase>
     osdf::Functions::createDatum<std::string>(const std::string) const;
 
@@ -157,6 +163,13 @@ const std::int8_t osdf::Functions::compareDatums(const std::shared_ptr<osdf::Dat
                                   std::static_pointer_cast<Datum<double>>(datumB);
       return datumAType->getValue() < datumBType->getValue();
     }
+    case consts::eChar: {
+      const std::shared_ptr<Datum<char>>& datumAType =
+                                  std::static_pointer_cast<Datum<char>>(datumA);
+      const std::shared_ptr<Datum<char>>& datumBType =
+                                  std::static_pointer_cast<Datum<char>>(datumB);
+      return datumAType->getValue() < datumBType->getValue();
+    }
     case consts::eString: {
       const std::shared_ptr<Datum<std::string>>& datumAType =
                                   std::static_pointer_cast<Datum<std::string>>(datumA);
@@ -197,6 +210,8 @@ template const std::int8_t osdf::Functions::compareToThreshold<float>(
                            const std::int8_t, const float, const float) const;
 template const std::int8_t osdf::Functions::compareToThreshold<double>(
                            const std::int8_t, const double, const double) const;
+template const std::int8_t osdf::Functions::compareToThreshold<char>(
+                           const std::int8_t, const char, const char) const;
 template const std::int8_t osdf::Functions::compareToThreshold<std::string>(
                            const std::int8_t, const std::string, const std::string) const;
 
@@ -218,6 +233,8 @@ template const std::vector<float>& osdf::Functions::getDataValues<float>(
                                          const std::shared_ptr<DataBase>&) const;
 template const std::vector<double>& osdf::Functions::getDataValues<double>(
                                          const std::shared_ptr<DataBase>&) const;
+template const std::vector<char>& osdf::Functions::getDataValues<char>(
+                                         const std::shared_ptr<DataBase>&) const;
 template const std::vector<std::string>& osdf::Functions::getDataValues<std::string>(
                                          const std::shared_ptr<DataBase>&) const;
 
@@ -238,6 +255,8 @@ template std::vector<std::int64_t>& osdf::Functions::getDataValues<std::int64_t>
 template std::vector<float>& osdf::Functions::getDataValues<float>(
                                    std::shared_ptr<DataBase>&);
 template std::vector<double>& osdf::Functions::getDataValues<double>(
+                                   std::shared_ptr<DataBase>&);
+template std::vector<char>& osdf::Functions::getDataValues<char>(
                                    std::shared_ptr<DataBase>&);
 template std::vector<std::string>& osdf::Functions::getDataValues<std::string>(
                                    std::shared_ptr<DataBase>&);

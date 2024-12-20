@@ -88,6 +88,11 @@ void osdf::FrameCols::appendNewColumn(const std::string& name,
 }
 
 void osdf::FrameCols::appendNewColumn(const std::string& name,
+                                      const std::vector<char>& values) {
+  appendNewColumn(name, values, consts::eChar);
+}
+
+void osdf::FrameCols::appendNewColumn(const std::string& name,
                                       const std::vector<std::string>& values) {
   appendNewColumn(name, values, consts::eString);
 }
@@ -114,6 +119,10 @@ void osdf::FrameCols::getColumn(const std::string& name, std::vector<float>& val
 
 void osdf::FrameCols::getColumn(const std::string& name, std::vector<double>& values) const {
   getColumn<double>(name, values, consts::eDouble);
+}
+
+void osdf::FrameCols::getColumn(const std::string& name, std::vector<char>& values) const {
+  getColumn<char>(name, values, consts::eChar);
 }
 
 void osdf::FrameCols::getColumn(const std::string& name, std::vector<std::string>& values) const {
@@ -148,6 +157,11 @@ void osdf::FrameCols::setColumn(const std::string& name,
 void osdf::FrameCols::setColumn(const std::string& name,
                                 const std::vector<double>& values) const {
   setColumn<double>(name, values, consts::eDouble);
+}
+
+void osdf::FrameCols::setColumn(const std::string& name,
+                                const std::vector<char>& values) const {
+  setColumn<char>(name, values, consts::eChar);
 }
 
 void osdf::FrameCols::setColumn(const std::string& name,
@@ -187,6 +201,10 @@ void osdf::FrameCols::removeColumn(const std::int32_t index) {
     oops::Log::error() << "ERROR: Column at index \"" << index
                        << "\" not found in current data frame." << std::endl;
   }
+}
+
+std::int8_t osdf::FrameCols::getColumnType(const std::string& name) const {
+  return data_.getType(data_.getIndex(name));
 }
 
 void osdf::FrameCols::removeRow(const std::int64_t index) {
@@ -261,6 +279,11 @@ void osdf::FrameCols::sortRows(const std::string& columnName, const std::int8_t 
           funcs_.sequenceIndices<double>(indices, values, order);
           break;
         }
+        case consts::eChar: {
+          const std::vector<char>& values = funcs_.getDataValues<char>(dataColRead);
+          funcs_.sequenceIndices<char>(indices, values, order);
+          break;
+        }
         case consts::eString: {
           const std::vector<std::string>& values = funcs_.getDataValues<std::string>(dataColRead);
           funcs_.sequenceIndices<std::string>(indices, values, order);
@@ -300,6 +323,11 @@ void osdf::FrameCols::sortRows(const std::string& columnName, const std::int8_t 
           case consts::eDouble: {
             std::vector<double>& values = funcs_.getDataValues<double>(dataColWrite);
             funcs_.reorderValues<double>(indices, values);
+            break;
+          }
+          case consts::eChar: {
+            std::vector<char>& values = funcs_.getDataValues<char>(dataColWrite);
+            funcs_.reorderValues<char>(indices, values);
             break;
           }
           case consts::eString: {

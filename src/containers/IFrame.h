@@ -54,6 +54,7 @@ class IFrame {
   virtual void appendNewColumn(const std::string&, const std::vector<std::int64_t>&) = 0;
   virtual void appendNewColumn(const std::string&, const std::vector<float>&) = 0;
   virtual void appendNewColumn(const std::string&, const std::vector<double>&) = 0;
+  virtual void appendNewColumn(const std::string&, const std::vector<char>&) = 0;
   virtual void appendNewColumn(const std::string&, const std::vector<std::string>&) = 0;
 
   /// \brief The following functions are used to copy data from a column. The derived classes use
@@ -68,6 +69,7 @@ class IFrame {
   virtual void getColumn(const std::string&, std::vector<std::int64_t>&) const = 0;
   virtual void getColumn(const std::string&, std::vector<float>&) const = 0;
   virtual void getColumn(const std::string&, std::vector<double>&) const = 0;
+  virtual void getColumn(const std::string&, std::vector<char>&) const = 0;
   virtual void getColumn(const std::string&, std::vector<std::string>&) const = 0;
 
   /// \brief The following functions are used to replace the data on an existing column.
@@ -79,7 +81,16 @@ class IFrame {
   virtual void setColumn(const std::string&, const std::vector<std::int64_t>&) const = 0;
   virtual void setColumn(const std::string&, const std::vector<float>&) const = 0;
   virtual void setColumn(const std::string&, const std::vector<double>&) const = 0;
+  virtual void setColumn(const std::string&, const std::vector<char>&) const = 0;
   virtual void setColumn(const std::string&, const std::vector<std::string>&) const = 0;
+
+  /// \brief Returns flag indicating the presence of a column with a specified name.
+  /// \param The column name.
+  virtual bool hasColumn(const std::string&) const = 0;
+
+  /// \brief Returns type for specified column. (See osdf::consts::eDataTypes for type enum.)
+  /// \param The column name.
+  virtual std::int8_t getColumnType(const std::string&) const = 0;
 
   /// \brief As the name suggests.
   /// \param The target column name.

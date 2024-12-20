@@ -165,7 +165,7 @@ void openCreateEpochDtimeVar(const std::string & groupName, const std::string & 
                              const std::size_t globalNlocs,
                              const util::DateTime & newEpoch, Variable & epochDtVar,
                              Has_Variables & destVarContainer) {
-  std::string fullVarName = groupName + "/" + varName;
+  std::string fullVarName = ioda::fullVarName(groupName, varName);
   if (destVarContainer.exists(fullVarName)) {
     // Variable already exists, simply open it.
     epochDtVar = destVarContainer.open(fullVarName);
