@@ -9,7 +9,6 @@
 #include "ioda/Exception.h"
 #include "ioda/Layout.h"
 #include "ioda/Misc/DimensionScales.h"
-#include "ioda/Misc/MergeMethods.h"
 #include "ioda/Misc/StringFuncs.h"
 #include "ioda/Misc/UnitConversions.h"
 
@@ -110,99 +109,6 @@ Variable Has_Variables_Base::open(const std::string& name) const {
   }
 }
 
-void Has_Variables_Base::stitchComplementaryVariables(bool removeOriginals) {
-  try {
-    if (layout_->name() != std::string("ObsGroup ODB v1")) return;
-    std::vector<std::string> variableList = list();
-    // Unique pointer used for lazy initialization. std::optional is not in C++14 and we don't want
-    // to introduce a dependency on Boost.
-    std::unique_ptr<std::list<Named_Variable>> dimScales;
-    for (auto const& name : variableList) {
-      const std::string destinationName = layout_->doMap(name);
-      if (layout_->isComplementary(destinationName)) {
-        size_t position        = layout_->getComplementaryPosition(destinationName);
-        std::string outputName = layout_->getOutputNameFromComponent(destinationName);
-        bool oneVariableStitch = false;
-        if (layout_->getInputsNeeded(destinationName) == 1) oneVariableStitch = true;
-
-        bool outputVariableMetadataPreviouslyGenerated = true;
-        // point to the derived variable parameter group if it has already been created (if
-        // another component variable has already been accessed)
-        auto const it
-          = std::find_if(complementaryVariables_.begin(), complementaryVariables_.end(),
-                         [&outputName](ComplementaryVariableCreationParameters compParam) {
-                           return compParam.outputName == outputName;
-                         });
-        if (it == complementaryVariables_.end()) {
-          outputVariableMetadataPreviouslyGenerated = false;
-          ComplementaryVariableCreationParameters derivedVariable
-            = createDerivedVariableParameters(name, outputName, position);
-          complementaryVariables_.push_back(derivedVariable);
-        }
-
-        if (outputVariableMetadataPreviouslyGenerated || oneVariableStitch) {
-          ComplementaryVariableCreationParameters* derivedVariableParams;
-          if (oneVariableStitch) {
-            derivedVariableParams = &complementaryVariables_.back();
-          } else {
-            derivedVariableParams                                  = &(*it);
-            derivedVariableParams->inputVariableNames.at(position) = name;
-            derivedVariableParams->inputVarsEnteredCount++;
-            if (derivedVariableParams->inputVarsEnteredCount
-                != derivedVariableParams->inputVarsNeededCount) {
-              continue;
-            }
-          }
-          std::vector<std::vector<std::string>> mergeMethodInput
-            = loadComponentVariableData(*derivedVariableParams);
-
-          Variable derivedVariable;
-          if (derivedVariableParams->mergeMethod
-              == ioda::detail::DataLayoutPolicy::MergeMethod::Concat) {
-            std::vector<std::string> derivedVector = concatenateStringVectors(mergeMethodInput);
-
-            const Variable firstInputVariable = this->open(
-                  derivedVariableParams->inputVariableNames.front());
-            // Retrieval of creation attributes and dimensions seems not to be implemented yet
-            const VariableCreationParameters creationParams =
-                firstInputVariable.getCreationParameters(false /*doAtts?*/, false /*doDims?*/);
-
-            if (!dimScales) {
-              // Identify all existing dimension scales
-              dimScales = std::make_unique<std::list<Named_Variable>>(
-                                                      identifyDimensionScales(*this, variableList));
-            }
-
-            const std::vector<std::vector<Named_Variable>> inputDimScales =
-                firstInputVariable.getDimensionScaleMappings(*dimScales);
-
-            std::vector<Variable> derivedDimScales;
-            if (inputDimScales.at(0).size() == 1)
-              derivedVariable = this->createWithScales<std::string>(
-                    derivedVariableParams->outputName, {inputDimScales[0][0].var}, creationParams);
-            else
-              derivedVariable = this->create<std::string>(
-                    derivedVariableParams->outputName,
-                    {gsl::narrow<ioda::Dimensions_t>(derivedVector.size())},
-                    {},  // max dimension
-                    creationParams);
-
-            derivedVariable.write(derivedVector);
-          }
-          if (removeOriginals) {
-            for (auto const& inputVar : derivedVariableParams->inputVariableNames) {
-              this->remove(layout_->doMap(inputVar));
-            }
-          }
-        }
-      }
-    }
-  } catch (...) {
-    std::throw_with_nested(Exception(
-      "An exception occurred inside ioda.", ioda_Here()));
-  }
-}
-
 void Has_Variables_Base::convertVariableUnits(std::ostream& out) {
   try {
     if (layout_->name() != std::string("ObsGroup ODB v1")) return;
@@ -231,44 +137,6 @@ void Has_Variables_Base::convertVariableUnits(std::ostream& out) {
     }
   } catch (...) {
     std::throw_with_nested(Exception("An exception occurred inside ioda.", ioda_Here()));
-  }
-}
-
-ComplementaryVariableCreationParameters Has_Variables_Base::createDerivedVariableParameters(
-    const std::string &inputName, const std::string &outputName, size_t position) {
-  try {
-    ComplementaryVariableCreationParameters newDerivedVariable(outputName);
-    const std::string destName              = layout_->doMap(inputName);
-    newDerivedVariable.mergeMethod          = layout_->getMergeMethod(destName);
-    newDerivedVariable.inputVarsNeededCount = layout_->getInputsNeeded(destName);
-    // Populates a vector with 1 empty entry for every vector that must be entered
-    std::vector<std::string> vec(newDerivedVariable.inputVarsNeededCount, "");
-    newDerivedVariable.inputVariableNames              = std::move(vec);
-    newDerivedVariable.inputVariableNames.at(position) = inputName;
-    newDerivedVariable.inputVarsEnteredCount           = 1;
-    return newDerivedVariable;
-  } catch (...) {
-    std::throw_with_nested(Exception(
-      "An exception occurred inside ioda.", ioda_Here())
-      .add("inputName", inputName).add("outputName", outputName).add("position", position));
-  }
-}
-
-std::vector<std::vector<std::string> > Has_Variables_Base::loadComponentVariableData(
-    const ComplementaryVariableCreationParameters &derivedVariableParams)
-{
-  try {
-    std::vector<std::vector<std::string>> mergeMethodInput;
-    for (size_t inputVariableIdx = 0;
-         inputVariableIdx != derivedVariableParams.inputVarsEnteredCount; inputVariableIdx++) {
-      Variable inputVariable
-        = this->open(derivedVariableParams.inputVariableNames[inputVariableIdx]);
-      mergeMethodInput.push_back(inputVariable.readAsVector<std::string>());
-    }
-    return mergeMethodInput;
-  } catch (...) {
-    std::throw_with_nested(Exception(
-      "An exception occurred inside ioda.", ioda_Here()));
   }
 }
 
@@ -409,7 +277,6 @@ Variable Has_Variables_Base::create(const std::string& name, const Type& in_memo
 
     params.applyImmediatelyAfterVariableCreation(newVar);
     if (layout_->name() == std::string("ObsGroup ODB v1") && !(layout_->isMapped(name) ||
-                                                               layout_->isComplementary(name) ||
                                                                layout_->isMapOutput(name))) {
       std::string eMessage = "The following variable was not remapped in the YAML file: '" + name +
         "'. Ensure that the fundamental dimensions are declared in 'generate'.";

@@ -97,31 +97,9 @@ std::string DataLayoutPolicy::name() const { return std::string{"None / no polic
 
 std::string DataLayoutPolicy::doMap(const std::string &str) const { return str; }
 
-bool DataLayoutPolicy::isComplementary(const std::string &str) const { return false; }
-
 bool DataLayoutPolicy::isMapped(const std::string &) const { return false; }
 
 bool DataLayoutPolicy::isMapOutput(const std::string &) const { return false; }
-
-size_t DataLayoutPolicy::getComplementaryPosition(const std::string &str) const {
-  throw Exception("Illogical operation for non-ODB data layout policies.", ioda_Here());
-}
-
-std::string DataLayoutPolicy::getOutputNameFromComponent(const std::string &str) const {
-  throw Exception("Illogical operation for non-ODB data layout policies.", ioda_Here());
-}
-
-std::type_index DataLayoutPolicy::getOutputVariableDataType(const std::string &str) const {
-  throw Exception("Illogical operation for non-ODB data layout policies.", ioda_Here());
-}
-
-DataLayoutPolicy::MergeMethod DataLayoutPolicy::getMergeMethod(const std::string &str) const {
-  throw Exception("Illogical operation for non-ODB data layout policies.", ioda_Here());
-}
-
-size_t DataLayoutPolicy::getInputsNeeded(const std::string &str) const {
-  throw Exception("Illogical operation for non-ODB data layout policies.", ioda_Here());
-}
 
 std::pair<bool, std::string> DataLayoutPolicy::getUnit(const std::string &) const {
   throw Exception("Illogical operation for non-ODB data layout policies.", ioda_Here());

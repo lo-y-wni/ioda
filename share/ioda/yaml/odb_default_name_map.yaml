@@ -696,6 +696,8 @@ varno-independent columns:
     source: "sst_measurement_method"
   - name: "MetaData/sst_quality"
     source: "sst_quality"
+  - name: "MetaData/stationACCombined"
+    source: "site_name"
   - name: "MetaData/stationElevation"
     source: "stalt"
   - name: "MetaData/startChannel1"
@@ -978,8 +980,3 @@ varno-dependent columns:
   - source: "dflag_badrawbt"
     group name: "DiagnosticFlags/BadRawBT"
     varno-to-variable-name mapping: *obsvalue_varnos
-complementary variables:
-  - output name: "MetaData/stationACCombined"
-    output variable data type: "string"
-    input names: ["site_name_1", "site_name_2", "site_name_3"]
-    merge method: "concat"

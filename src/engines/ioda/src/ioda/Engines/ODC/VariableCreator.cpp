@@ -10,6 +10,7 @@
 #include <gsl/gsl-lite.hpp>
 
 #include "ioda/Engines/ODC/DataFromSQL.h"
+#include "ioda/Engines/ODC/OdbConstants.h"
 #include "ioda/Engines/ODC/VariableReaderFactory.h"
 #include "ioda/ObsGroup.h"
 

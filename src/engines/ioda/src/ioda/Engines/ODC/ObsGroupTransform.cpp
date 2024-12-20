@@ -7,8 +7,12 @@
 
 #include "ioda/Engines/ODC/ObsGroupTransform.h"
 
+#include "ioda/Engines/ODC/OdbConstants.h"
 #include "ioda/Engines/ODC/ObsGroupTransformFactory.h"
-#include "ioda/Engines/ODC/DataFromSQL.h"
+#include "ioda/ObsGroup.h"
+
+#include "oops/util/DateTime.h"
+#include "oops/util/missingValues.h"
 
 #include <sstream>
 
@@ -17,9 +21,14 @@ namespace Engines {
 namespace ODC {
 
 namespace {
+// Register transforms
 ObsGroupTransformMaker<CreateDateTimeTransform> createDateTimeMaker("create dateTime");
 ObsGroupTransformMaker<CreateStationIdTransform> createStationIdMaker(
     "create stationIdentification");
+ObsGroupTransformMaker<ConcatenateVariablesTransform> concatenateVariablesMaker(
+    "concatenate variables");
+
+// -----------------------------------------------------------------------------
 
 /// Convert an epoch string to a util::DateTime
 // todo: keep unified with the version in IodaUtils.cc
@@ -205,6 +214,90 @@ void CreateStationIdTransform::transform(ObsGroup &og) const
 
   ioda::Variable v = og.vars[parameters_.destination];
   v.write(stationIDs);
+}
+
+// -----------------------------------------------------------------------------
+
+ConcatenateVariablesTransform::ConcatenateVariablesTransform(
+    const Parameters_ &transformParameters, const ODC_Parameters &,
+    const OdbVariableCreationParameters &)
+  : transformParameters_(transformParameters)
+{}
+
+void ConcatenateVariablesTransform::transform(ObsGroup &og) const
+{
+  const std::vector<std::string> &sourceNames = transformParameters_.sources.value();
+  ASSERT(!sourceNames.empty());
+  const size_t numSources = sourceNames.size();
+
+  // Gather all source variables.
+  std::vector<Variable> sources;
+  sources.reserve(sourceNames.size());
+  std::transform(sourceNames.begin(), sourceNames.end(), std::back_inserter(sources),
+                 [&og](const std::string &name) {
+                   Variable source = og.vars[name];
+                   if (source.getType().getClass() != TypeClass::String)
+                     throw eckit::UserError("All concatenated variables must be of type string. "
+                                            "Variable '" + name + "' is not.", Here());
+                   return source;
+                  });
+
+  // Gather the values of these variables.
+  std::vector<std::vector<std::string>> sourceValues;
+  sourceValues.reserve(sourceNames.size());
+  std::transform(sources.begin(), sources.end(), std::back_inserter(sourceValues),
+                 [&og](const Variable &source) { return source.readAsVector<std::string>(); });
+
+  const size_t numElements = sourceValues.front().size();
+  if (std::any_of(std::next(sourceValues.begin()), sourceValues.end(),
+                  [numElements](const std::vector<std::string> &values)
+                  { return values.size() != numElements; }))
+    throw eckit::UserError("All variables to concatenate must be of the same size.", Here());
+
+  // Concatenate these values.
+  std::vector<std::string> concatenatedValues(numElements);
+  for (size_t e = 0; e < numElements; ++e) {
+    size_t concatenatedLength = 0;
+    for (size_t s = 0; s < numSources; ++s)
+      concatenatedLength += sourceValues[s][e].size();
+    std::string &concatenatedValue = concatenatedValues[e];
+    concatenatedValue.reserve(concatenatedLength);
+    for (size_t s = 0; s < numSources; ++s)
+      concatenatedValue += sourceValues[s][e];
+  }
+
+  // Create the destination variable.
+  const std::vector<Variable> destinationDimScales = destinationDimensionScales(og, sources.front());
+  // Retrieval of creation attributes and dimensions seems not to be implemented yet.
+  const VariableCreationParameters varCreationParameters =
+      sources.front().getCreationParameters(false /*doAtts?*/, false /*doDims?*/);
+  ioda::Variable destination = og.vars.createWithScales<std::string>(
+    transformParameters_.destination, destinationDimScales, varCreationParameters);
+
+  // Store the concatenated strings in the destination variable.
+  destination.write(concatenatedValues);
+}
+
+std::vector<Variable> ConcatenateVariablesTransform::destinationDimensionScales(
+    const ObsGroup &og, const Variable &firstSource)
+{
+  // Identify all existing dimension scales.
+  std::vector<std::string> allVarNames = og.vars.list();
+  const std::list<Named_Variable> allDimScales = identifyDimensionScales(og.vars, allVarNames);
+  // Identify the dimension scales associated with the first source variable.
+  const std::vector<std::vector<Named_Variable>> namedSourceDimScales =
+    firstSource.getDimensionScaleMappings(allDimScales);
+  ASSERT_MSG(std::all_of(namedSourceDimScales.begin(), namedSourceDimScales.end(),
+                         [](const auto &v) { return v.size() == 1; }),
+             "All dimensions of concatenated variables are expected to have an attached dimension "
+             "scale");
+  // Gather these scales in a flat vector.
+  std::vector<Variable> destinationDimScales;
+  destinationDimScales.reserve(namedSourceDimScales.size());
+  std::transform(namedSourceDimScales.begin(), namedSourceDimScales.end(),
+                 std::back_inserter(destinationDimScales),
+                 [](const std::vector<Named_Variable>& scales) { return scales.front().var; });
+  return destinationDimScales;
 }
 
 }  // namespace ODC

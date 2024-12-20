@@ -17,7 +17,7 @@ namespace ioda {
 
 class ObsGroup;
 class Variable;
-class VariableCreationParameters;
+struct VariableCreationParameters;
 
 namespace Engines {
 namespace ODC {

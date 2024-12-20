@@ -47,10 +47,6 @@ public:
     ///  the new group names match a few predefined keys.
     ObsGroupODB
   };
-  enum class MergeMethod {
-    /// Concatenate complementary variables entry-by-entry
-    Concat
-  };
 
   /// Factory generator.
   static std::shared_ptr<const DataLayoutPolicy> generate(const std::string &polid = "");
@@ -99,34 +95,11 @@ public:
   ///   scale, then there is no group name, but for every other Variable, there is a Group name.
   virtual std::string doMap(const std::string &) const;
 
-  /// Check if the named variable will be a part of a derived variable
-  virtual bool isComplementary(const std::string &) const;
-
   /// Check if the named variable is in the Variables section of the ODB mapping file.
   virtual bool isMapped(const std::string &) const;
 
   /// Check if the named variable matches one of the output (ioda) names.
   virtual bool isMapOutput(const std::string &) const;
-
-  /// Returns the position of the input variable in the derived variable.
-  /// \throws If the input is not part of a derived variable.
-  virtual size_t getComplementaryPosition(const std::string &) const;
-
-  /// Returns the derived variable name to be used in ioda.
-  /// \throws If the input is not part of a derived variable.
-  virtual std::string getOutputNameFromComponent(const std::string &) const;
-
-  /// Returns the data type of the derived variable.
-  /// \throws If the input is not part of a derived variable.
-  virtual std::type_index getOutputVariableDataType(const std::string &) const;
-
-  /// Returns the merge method for derived variables.
-  /// \throws If the input is not part of a derived variable.
-  virtual MergeMethod getMergeMethod(const std::string &) const;
-
-  /// Returns the count of input variables needed.
-  /// \throws If the input is not part of a derived variable.
-  virtual size_t getInputsNeeded(const std::string &) const;
 
   /// Returns the variable's unit if it has been specified.
   /// \returns A pair of (found, unit) indicating if a unit was found and what it is.

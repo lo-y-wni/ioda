@@ -17,7 +17,7 @@ namespace Engines {
 namespace ODC {
 
 class OdbVariableCreationParameters;
-class ODC_Parameters;
+struct ODC_Parameters;
 
 class ObsGroupTransformFactory {
  public:

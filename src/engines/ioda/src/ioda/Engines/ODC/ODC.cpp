@@ -18,14 +18,6 @@
 #include <vector>
 #include <ctime>
 
-#if USE_BOOST_REGEX
-#include <boost/regex.hpp>
-#define REGEX_NAMESPACE boost
-#else
-#include <regex>
-#define REGEX_NAMESPACE std
-#endif
-
 #include "eckit/io/MemoryHandle.h"
 #include "eckit/utils/StringTools.h"
 #include "ioda/Engines/ODC.h"
@@ -36,6 +28,7 @@
 #include "ioda/Types/Type.h"
 #include "oops/util/AssociativeContainers.h"
 #include "oops/util/Logger.h"
+#include "oops/util/missingValues.h"
 
 #if odc_FOUND
 # include "eckit/config/LocalConfiguration.h"
@@ -44,12 +37,17 @@
 # include "odc/api/odc.h"
 # include "odc/Writer.h"
 # include "ioda/Engines/ODC/DataFromSQL.h"
+# include "ioda/Engines/ODC/OdbConstants.h"
+# include "ioda/Engines/ODC/OdbColumnUtils.h"
 # include "ioda/Engines/ODC/OdbQueryParameters.h"
 # include "ioda/Engines/ODC/ChannelIndexerFactory.h"
+# include "ioda/Engines/ODC/ComplementarityInfo.h"
 # include "ioda/Engines/ODC/ObsGroupTransformFactory.h"
+# include "ioda/Engines/ODC/ParsedColumnExpression.h"
 # include "ioda/Engines/ODC/RowsIntoLocationsSplitterFactory.h"
 # include "ioda/Engines/ODC/VariableCreator.h"
 # include "ioda/Engines/ODC/VariableReaderFactory.h"
+# include "ioda/Misc/StringFuncs.h"
 # include "../../Layouts/Layout_ObsGroup_ODB_Params.h"
 #endif
 
@@ -82,131 +80,54 @@ const char odcMissingMessage[] {
 #if odc_FOUND
 
 // -------------------------------------------------------------------------------------------------
-// (Very simple) SQL expression parsing
+// Functions used both by the ODB file reader and writer.
 
-/// Parsed SQL column expression.
-struct ParsedColumnExpression {
-  /// If `expression` is a bitfield column member name (of the form `column.member[@table]`,
-  /// where `@table` is optional), split it into the column name `column[@table]` and member
-  /// name `member`. Otherwise leave it unchanged.
-  explicit ParsedColumnExpression(const std::string &expression) {
-    static const REGEX_NAMESPACE::regex re("(\\w+)(?:\\.(\\w+))?(?:@(.+))?");
-    REGEX_NAMESPACE::smatch match;
-    if (REGEX_NAMESPACE::regex_match(expression, match, re)) {
-      // This is an identifier of the form column[.member][@table]
-      column += match[1].str();
-      if (match[3].length()) {
-         column += '@';
-         column += match[3].str();
-      }
-      member = match[2];
-    } else {
-      // This is a more complex expression
-      column = expression;
-    }
-  }
-
-  std::string column;  //< Column name (possibly including table name) or a more general expression
-  std::string member;  //< Bitfield member name (may be empty)
-};
-
-bool operator<(const ParsedColumnExpression & a, const ParsedColumnExpression &b) {
-  return a.column < b.column || (a.column == b.column && a.member < b.member);
-}
-
-// -------------------------------------------------------------------------------------------------
-// Query file parsing
-
-/// \brief The set of ODB column members selected by the query file.
+/// \brief Return the set of columns referenced in the `variables` list in the query file.
 ///
-/// (Only bitfield columns have members; other columns can only be selected as a whole. Bitfield
-/// columns can also be selected as a whole.)
-class MemberSelection {
- public:
-  /// Create an empty selection.
-  MemberSelection() = default;
-
-  /// Return true if the whole column has been selected, false otherwise.
-  bool allMembersSelected() const { return allMembersSelected_; }
-  /// Return the set of selected members or an empty set if the whole column has been selected.
-  const std::set<std::string> &selectedMembers() const { return selectedMembers_; }
-
-  /// Add member `member` to the selection.
-  void addMember(const std::string &member) {
-    if (!allMembersSelected_)
-      selectedMembers_.insert(member);
-  }
-
-  /// Add all members to the selection.
-  void addAllMembers() {
-    allMembersSelected_ = true;
-    selectedMembers_.clear();
-  }
-
-  /// Return the intersection of `members` with the set of selected members.
-  std::set<std::string> intersectionWith(const std::set<std::string> &members) const {
-    if (allMembersSelected()) {
-      return members;
-    } else {
-      std::set<std::string> intersection;
-      std::set_intersection(members.begin(), members.end(),
-                            selectedMembers_.begin(), selectedMembers_.end(),
-                            std::inserter(intersection, intersection.end()));
-      return intersection;
-    }
-  }
-
- private:
-  std::set<std::string> selectedMembers_;
-  /// True if the column has been selected as a whole (i.e. effectively all members are selected)
-  bool allMembersSelected_ = false;
-};
-
-/// The set of ODB columns selected by the query file (possibly only partially, i.e. including only
-/// a subset of bitfield members).
-class ColumnSelection {
- public:
-  ColumnSelection() = default;
-
-  void addColumn(const std::string &column) {
-    members_[column].addAllMembers();
-  }
-
-  void addColumnMember(const std::string &column, const std::string &member) {
-    members_[column].addMember(member);
-  }
-
-  /// Return the sorted list of
-  std::vector<std::string> columns() const {
-    std::vector<std::string> result;
-    for (const auto &columnAndMembers : members_) {
-      result.push_back(columnAndMembers.first);
-    }
-    return result;
-  }
-
-  const MemberSelection &columnMembers(const std::string &column) const {
-    return members_.at(column);
-  }
-
- private:
-  std::map<std::string, MemberSelection> members_;
-};
-
-/// Select columns and column members specified in the `variables` list in the query file.
-void addQueryColumns(ColumnSelection &selection, const OdbQueryParameters &queryParameters) {
+/// This includes both columns selected in their entirety and bitfield columns for which only some
+/// members are selected.
+std::set<std::string> getColumnsReferencedByQuery(const OdbQueryParameters &queryParameters) {
+  std::set<std::string> columns;
   for (const OdbVariableParameters &varParameters : queryParameters.variables.value()) {
     ParsedColumnExpression parsedSource(varParameters.name);
-    if (parsedSource.member.empty()) {
-      selection.addColumn(parsedSource.column);
-    } else {
-      selection.addColumnMember(parsedSource.column, parsedSource.member);
-    }
+    columns.insert(parsedSource.column);
   }
+  return columns;
 }
 
 // -------------------------------------------------------------------------------------------------
 // Functions used by the ODB file reader.
+
+/// \brief Return the list of columns to be selected by the SQL query.
+std::vector<std::string> identifyColumnsToSelect(
+    const OdbQueryParameters &queryParameters,
+    const std::map<std::string, std::vector<std::string>> &complementaryColumns) {
+  std::set<std::string> columnsToSelect = getColumnsReferencedByQuery(queryParameters);
+
+  // Strings may be split into 8-character components, each stored in a separate column; if so,
+  // we need replace the original column name with the list of names of these columns.
+  for (const auto &kv : complementaryColumns) {
+    const std::string &replacedColumn = kv.first;
+    const std::vector<std::string> &replacementColumns = kv.second;
+    columnsToSelect.erase(replacedColumn);
+    columnsToSelect.insert(replacementColumns.begin(), replacementColumns.end());
+  }
+
+  // Temporary: Ensure that obsvalue, if present, is the last item. This ensures ODB
+  // conversion tests produce output files with variables arranged in the same order as a previous
+  // version of this code. The h5diff tool used by these tests is oddly sensitive to variable order.
+  // In case of a future major change necessitating regeneration of the reference output files
+  // this code can be removed.
+  std::vector<std::string> orderedColumnsToSelect(columnsToSelect.begin(), columnsToSelect.end());
+  const auto it = std::find(orderedColumnsToSelect.begin(), orderedColumnsToSelect.end(),
+                            "initial_obsvalue");
+  if (it != orderedColumnsToSelect.end()) {
+    // Move the initial_obsvalue column to the end
+    std::rotate(it, it + 1, orderedColumnsToSelect.end());
+  }
+
+  return orderedColumnsToSelect;
+}
 
 /// \brief Creates dimension scales for the ObsGroup that will receive data loaded from an ODB file.
 NewDimensionScales_t makeDimensionScales(const RowsByLocation &rowsByLocation,
@@ -247,28 +168,24 @@ bool containsAny(const std::vector<T> &vector, const std::vector<T>& elements) {
                      [&vector] (const T &element) { return contains(vector, element); });
 }
 
-bool isSourceInQuery(const ParsedColumnExpression &source,
-                     const std::set<ParsedColumnExpression> &queryContents) {
-  if (source.member.empty())
-    return oops::contains(queryContents, source);
-  else
-    return oops::contains(queryContents, source) ||
-           oops::contains(queryContents, ParsedColumnExpression(source.column));
-}
-
 /// \brief Constructs and returns a vector of objects that will be used to create location-dependent
 /// ioda variables holding data loaded from an ODB file.
 std::vector<VariableCreator> makeVariableCreators(
     const detail::ODBLayoutParameters &layoutParams,
     const OdbQueryParameters &queryParams,
-    const std::vector<int> &availableVarnos) {
+    const std::vector<int> &availableVarnos,
+    const ComplementarityInfo &complementarityInfo) {
   std::vector<VariableCreator> variableCreators;
 
   std::set<ParsedColumnExpression> queryContents;
-  for (const auto &columns : queryParams.variables.value())
-    queryContents.insert(ParsedColumnExpression(columns.name));
+  for (const auto &column : queryParams.variables.value())
+    queryContents.insert(ParsedColumnExpression(column.name));
 
   const OdbVariableCreationParameters &varCreationParams = queryParams.variableCreation;
+  const std::map<std::string, std::vector<std::string>> &complementaryColumnsInfo =
+      complementarityInfo.complementaryColumns();
+  const std::map<std::string, std::vector<std::string>> &complementaryVariablesInfo =
+      complementarityInfo.complementaryVariables();
 
   // Handle varno-independent columns
   for (const detail::VariableParameters &columnParams : layoutParams.variables.value()) {
@@ -288,12 +205,30 @@ std::vector<VariableCreator> makeVariableCreators(
     else
       readerParams = &varCreationParams.defaultReader.value().params.value();
 
-    VariableCreator creator(columnParams.name,
-                            parsedSource.column,
-                            parsedSource.member,
-                            columnParams.multichannel,
-                            *readerParams);
-    variableCreators.push_back(std::move(creator));
+    // Has the contents of this variable been split into multiple columns in the input ODB file?
+    auto complementaryVariablesIt = complementaryVariablesInfo.find(
+          columnParams.name);
+    if (complementaryVariablesIt == complementaryVariablesInfo.end()) {
+      // No, it hasn't.
+      variableCreators.emplace_back(columnParams.name,
+                                    parsedSource.column,
+                                    parsedSource.member,
+                                    columnParams.multichannel,
+                                    *readerParams);
+    } else {
+      // Yes, it has. Construct a variable creator for each of these columns.
+      auto complementaryColumnsIt = complementaryColumnsInfo.find(parsedSource.column);
+      ASSERT(complementaryColumnsIt != complementaryColumnsInfo.end());
+      const std::vector<std::string> &complementaryVariables = complementaryVariablesIt->second;
+      const std::vector<std::string> &complementaryColumns = complementaryColumnsIt->second;
+      ASSERT(complementaryColumns.size() == complementaryVariables.size());
+      for (size_t i = 0; i < complementaryVariables.size(); ++i)
+        variableCreators.emplace_back(complementaryVariables[i],
+                                      complementaryColumns[i],
+                                      parsedSource.member,
+                                      columnParams.multichannel,
+                                      *readerParams);
+    }
   }
 
   const std::set<int> multichannelVarnos(varCreationParams.multichannelVarnos.value().begin(),
@@ -342,29 +277,14 @@ std::vector<VariableCreator> makeVariableCreators(
       readerConfig.set("varnos", varnos);
       readerParams.validateAndDeserialize(readerConfig);
 
+      // NOTE: There's no support for complementary varno-dependent columns yet, but nothing
+      // precludes adding it.
       const bool hasChannelAxis = oops::contains(multichannelVarnos, mappingParams.varno);
       VariableCreator creator(variableName,
                               parsedSource.column,
                               parsedSource.member,
                               hasChannelAxis,
                               readerParams.params.value());
-      variableCreators.push_back(std::move(creator));
-    }
-  }
-
-  // Handle complementary variables
-  for (const detail::ComplementaryVariablesParameters &complementaryVariablesParams :
-       layoutParams.complementaryVariables.value()) {
-    for (const std::string &columnName : complementaryVariablesParams.inputNames.value()) {
-      // Skip columns absent from the query.
-      if (!isSourceInQuery(ParsedColumnExpression(columnName), queryContents))
-        continue;
-
-      VariableCreator creator(columnName,
-                              columnName,
-                              "",
-                              false /*has channel axis?*/,
-                              varCreationParams.defaultReader.value().params.value());
       variableCreators.push_back(std::move(creator));
     }
   }
@@ -406,14 +326,14 @@ std::vector<VariableCreator> makeVariableCreators(
   return variableCreators;
 }
 
-/// \brief Creates a vector of objects transforming pairs of variables storing dates and times in
-/// the ODB format into single variables storing datetimes in the ioda format.
-std::vector<std::unique_ptr<ObsGroupTransformBase>> makeDateTimeTransforms(
+/// \brief Creates objects transforming pairs of variables storing dates and times in
+/// the ODB format into single variables storing datetimes in the ioda format. Appends them
+/// to the vector \p transforms.
+void appendDateTimeTransforms(
     const ODC_Parameters &odcParameters,
+    const OdbVariableCreationParameters& varCreationParameters,
     const std::vector<OdbVariableParameters> &variableParameters,
-    const OdbVariableCreationParameters& varCreationParameters) {
-  std::vector<std::unique_ptr<ObsGroupTransformBase>> transforms;
-
+    std::vector<std::unique_ptr<ObsGroupTransformBase>> &transforms) {
   bool hasDate = false, hasTime = false, hasReceiptDate = false, hasReceiptTime = false;
   for (const OdbVariableParameters &varParams : variableParameters) {
     if (varParams.name.value() == "date")
@@ -466,26 +386,53 @@ std::vector<std::unique_ptr<ObsGroupTransformBase>> makeDateTimeTransforms(
     transforms.push_back(ObsGroupTransformFactory::create(transformParameters.params,
                                                           odcParameters, varCreationParameters));
   }
+}
 
-  return transforms;
+void appendComplementaryVariableTransforms(
+    const ODC_Parameters &odcParameters,
+    const OdbVariableCreationParameters& varCreationParameters,
+    const std::map<std::string, std::vector<std::string>> &complementaryVariables,
+    std::vector<std::unique_ptr<ObsGroupTransformBase>> &transforms) {
+  for (const auto &kv : complementaryVariables) {
+    eckit::LocalConfiguration config;
+    config.set("name", "concatenate variables");
+    config.set("sources", kv.second);
+    config.set("destination", kv.first);
+    ObsGroupTransformParameters transformParameters;
+    transformParameters.validateAndDeserialize(config);
+    transforms.push_back(ObsGroupTransformFactory::create(transformParameters.params,
+                                                          odcParameters, varCreationParameters));
+  }
+}
+
+void appendUserDefinedTransforms(
+    const ODC_Parameters &odcParameters,
+    const OdbVariableCreationParameters& varCreationParameters,
+    std::vector<std::unique_ptr<ObsGroupTransformBase>> &transforms) {
+  for (const ObsGroupTransformParameters &transformParameters :
+       varCreationParameters.transforms.value())
+    transforms.push_back(ObsGroupTransformFactory::create(transformParameters.params,
+                                                          odcParameters, varCreationParameters));
 }
 
 /// \brief Creates and returns a vector of objects applying extra transforms to an ObsGroup read
 /// from an ODB file.
 std::vector<std::unique_ptr<ObsGroupTransformBase>> makeTransforms(
     const ODC_Parameters &odcParameters,
+    const OdbVariableCreationParameters& varCreationParameters,
     const std::vector<OdbVariableParameters> &variableParameters,
-    const OdbVariableCreationParameters& varCreationParameters) {
+    const std::map<std::string, std::vector<std::string>> &complementaryVariables) {
+  std::vector<std::unique_ptr<ObsGroupTransformBase>> transforms;
+
   // Date/time transforms are always applied as long as the required columns are in the query.
-  std::vector<std::unique_ptr<ObsGroupTransformBase>> transforms = makeDateTimeTransforms(
-        odcParameters, variableParameters, varCreationParameters);
+  appendDateTimeTransforms(
+        odcParameters, varCreationParameters, variableParameters, transforms);
+
+  appendComplementaryVariableTransforms(
+        odcParameters, varCreationParameters, complementaryVariables, transforms);
 
   // The layout file may list extra transforms to be applied as well.
-  for (const ObsGroupTransformParameters &transformParameters :
-       varCreationParameters.transforms.value())
-    transforms.push_back(ObsGroupTransformFactory::create(transformParameters.params,
-                                                          odcParameters, varCreationParameters));
-
+  appendUserDefinedTransforms(odcParameters, varCreationParameters, transforms);
   return transforms;
 }
 
@@ -506,7 +453,7 @@ struct ReverseColumnMappings {
 /// * listing the varnos for which a mapping of each varno-dependent column or column member has
 ///   been defined.
 ReverseColumnMappings collectReverseColumnMappings(const detail::ODBLayoutParameters &layoutParams,
-                                                   const std::vector<std::string> &columns,
+                                                   const std::set<std::string> &columns,
                                                    const std::vector<int> &listOfVarNos) {
   ReverseColumnMappings mappings;
 
@@ -517,8 +464,7 @@ ReverseColumnMappings collectReverseColumnMappings(const detail::ODBLayoutParame
       continue;
     }
 
-    const auto it = std::find(columns.begin(), columns.end(), columnParams.source.value());
-    if (it != columns.end())
+    if (oops::contains(columns, columnParams.source.value()))
       mappings.varnoIndependentColumns[columnParams.name.value()] = columnParams.source.value();
   }
 
@@ -529,7 +475,7 @@ ReverseColumnMappings collectReverseColumnMappings(const detail::ODBLayoutParame
     mappings.varnoIndependentColumns["MetaData/longitude"] = "lon";
   if (mappings.varnoIndependentColumns.find("MetaData/dateTime") == mappings.varnoIndependentColumns.end())
     mappings.varnoIndependentColumns["MetaData/dateTime"] = "date";
-  if (std::find(columns.begin(), columns.end(), "receipt_date") != columns.end() &&
+  if (oops::contains(columns, "receipt_date") &&
       mappings.varnoIndependentColumns.find("MetaData/receiptdateTime") == mappings.varnoIndependentColumns.end())
     mappings.varnoIndependentColumns["MetaData/receiptdateTime"] = "receipt_date";
 
@@ -546,8 +492,7 @@ ReverseColumnMappings collectReverseColumnMappings(const detail::ODBLayoutParame
   // Create name mapping for varno dependent columns
   for (const detail::VarnoDependentColumnParameters &columnParams :
        layoutParams.varnoDependentColumns.value()) {
-    const auto it = std::find(columns.begin(), columns.end(), columnParams.source.value());
-    if (it != columns.end()) {
+    if (oops::contains(columns, columnParams.source.value())) {
       for (const auto &map : columnParams.mappings.value()) {
         const auto varnoIt = std::find(listOfVarNos.begin(), listOfVarNos.end(), map.varno);
         if (varnoIt != listOfVarNos.end()) {
@@ -1229,8 +1174,7 @@ Group createFile(const ODC_Parameters& odcparams, Group storageGroup) {
   eckit::YAMLConfiguration conf(eckit::PathName(odcparams.queryFile));
   OdbQueryParameters queryParameters;
   queryParameters.validateAndDeserialize(conf);
-  ColumnSelection columnSelection;
-  addQueryColumns(columnSelection, queryParameters);
+  const std::set<std::string> columnsToSelect = getColumnsReferencedByQuery(queryParameters);
   const std::vector<int> &listOfVarNos =
           queryParameters.where.value().varno.value().as<std::vector<int>>();
 
@@ -1239,7 +1183,7 @@ Group createFile(const ODC_Parameters& odcparams, Group storageGroup) {
   layoutParams.validateAndDeserialize(
         eckit::YAMLConfiguration(eckit::PathName(odcparams.mappingFile)));
   ReverseColumnMappings columnMappings = collectReverseColumnMappings(layoutParams,
-                                                                      columnSelection.columns(),
+                                                                      columnsToSelect,
                                                                       listOfVarNos);
 
   // Setup the varno independent columns and vectors
@@ -1335,41 +1279,40 @@ ObsGroup openFile(const ODC_Parameters& odcparams,
   oops::Log::debug() << "ODC called with " << odcparams.queryFile << "  " <<
                         odcparams.mappingFile << std::endl;
 
-  // 2. Extract the lists of columns and varnos to select from the query file.
+  // 2. Parse the query and mapping file.
 
-  eckit::YAMLConfiguration conf(eckit::PathName(odcparams.queryFile));
   OdbQueryParameters queryParameters;
-  queryParameters.validateAndDeserialize(conf);
+  queryParameters.validateAndDeserialize(
+        eckit::YAMLConfiguration(eckit::PathName(odcparams.queryFile)));
 
-  ColumnSelection columnSelection;
-  addQueryColumns(columnSelection, queryParameters);
+  detail::ODBLayoutParameters layoutParameters;
+  layoutParameters.validateAndDeserialize(
+        eckit::YAMLConfiguration(eckit::PathName(odcparams.mappingFile)));
+
+  // 3. Verify which columns are present in the ODB file and if any strings have been split
+  //    into multiple "complementary" columns (a single ODB column can hold at most 8 characters).
+
+  const OdbColumnsInfo odbColumnsInfo = getOdbColumnsInfo(odcparams.filename);
+  const ComplementarityInfo complementarityInfo(layoutParameters, queryParameters, odbColumnsInfo);
+
+  // 4. Gather the list of columns and varnos to be included in the SQL query.
+
+  const std::vector<std::string> columnsToSelect = identifyColumnsToSelect(
+        queryParameters, complementarityInfo.complementaryColumns());
 
   // TODO(someone): Handle the case of the 'varno' option being set to ALL.
   const vector<int> &varnos = queryParameters.where.value().varno.value().as<std::vector<int>>();
 
-  // 3. Perform the SQL query.
+  // 5. Perform the SQL query.
 
   DataFromSQL sql_data;
-  {
-    std::vector<std::string> columnNames = columnSelection.columns();
+  sql_data.select(columnsToSelect,
+                  odcparams.filename,
+                  varnos,
+                  queryParameters.where.value().query);
 
-    // Temporary: Ensure that obsvalue, if present, is the last item. This ensures ODB
-    // conversion tests produce output files with variables arranged in the same order as a previous
-    // version of this code. The h5diff tool used by these tests is oddly sensitive to variable order.
-    // In case of a future major change necessitating regeneration of the reference output files
-    // this code can be removed.
-    {
-      const auto it = std::find(columnNames.begin(), columnNames.end(), "initial_obsvalue");
-      if (it != columnNames.end()) {
-        // Move the initial_obsvalue column to the end
-        std::rotate(it, it + 1, columnNames.end());
-      }
-    }
-    sql_data.select(columnNames,
-                    odcparams.filename,
-                    varnos,
-                    queryParameters.where.value().query);
-  }
+  // 6. Associate rows selected by the query with individual ioda locations.
+  //    Create a channel indexer.
 
   const std::unique_ptr<RowsIntoLocationsSplitterBase> rowsIntoLocationsSplitter =
       RowsIntoLocationsSplitterFactory::create(
@@ -1379,8 +1322,17 @@ ObsGroup openFile(const ODC_Parameters& odcparams,
   if (rowsByLocation.empty())
     return storageGroup;
 
-  // 4. Create an ObsGroup, using the mapping file to set up the translation of ODB column names
+  std::unique_ptr<ChannelIndexerBase> channelIndexer;
+  if (queryParameters.variableCreation.channelIndexing.value()) {
+    channelIndexer = ChannelIndexerFactory::create(
+          queryParameters.variableCreation.channelIndexing.value()->params);
+  }
+
+  // 7. Create an ObsGroup, using the mapping file to set up the translation of ODB column names
   // to ioda variable names
+
+  NewDimensionScales_t dimensionScales = makeDimensionScales(
+    rowsByLocation, channelIndexer.get(), sql_data);
 
   std::vector<std::string> ignores;
   ignores.push_back("Location");
@@ -1397,15 +1349,13 @@ ObsGroup openFile(const ODC_Parameters& odcparams,
   if (writeInitialDateTime)
     ignores.push_back("MetaData/initialDateTime");
   ignores.push_back("Channel");
-
-  std::unique_ptr<ChannelIndexerBase> channelIndexer;
-  if (queryParameters.variableCreation.channelIndexing.value()) {
-    channelIndexer = ChannelIndexerFactory::create(
-          queryParameters.variableCreation.channelIndexing.value()->params);
+  // Ignore also temporary variables storing data extracted from complementary columns, which will
+  // be deleted after concatenation by ObsGroupTransforms.
+  for (const auto &kv : complementarityInfo.complementaryVariables()) {
+    const std::vector<std::string> &temporaryComponentVariables = kv.second;
+    ignores.insert(ignores.end(),
+                   temporaryComponentVariables.begin(), temporaryComponentVariables.end());
   }
-
-  NewDimensionScales_t dimensionScales = makeDimensionScales(
-    rowsByLocation, channelIndexer.get(), sql_data);
 
   auto og = ObsGroup::generate(
     storageGroup,
@@ -1413,47 +1363,39 @@ ObsGroup openFile(const ODC_Parameters& odcparams,
     detail::DataLayoutPolicy::generate(
       detail::DataLayoutPolicy::Policies::ObsGroupODB, odcparams.mappingFile, ignores));
 
-  // 5. Determine which columns and bitfield column members are varno-dependent and which aren't
-  detail::ODBLayoutParameters layoutParameters;
-  layoutParameters.validateAndDeserialize(
-        eckit::YAMLConfiguration(eckit::PathName(odcparams.mappingFile)));
+  // 8. Populate the ObsGroup with variables
 
   const std::vector<VariableCreator> variableCreators = makeVariableCreators(
-    layoutParameters, queryParameters, sql_data.getVarnos());
-
-  // 6. Populate the ObsGroup with variables
+        layoutParameters, queryParameters, sql_data.getVarnos(), complementarityInfo);
 
   ioda::VariableCreationParameters params;
 
-  // 6.1. Create location-independent variables
+  // 8.1. Create location-independent variables
 
   if (channelIndexer)
     createChannelVariable(og, *channelIndexer, rowsByLocation, sql_data);
 
-  // 6.2. Create location-dependent variables
+  // 8.2. Create location-dependent variables
 
   for (const VariableCreator &creator : variableCreators) {
     creator.createVariable(og, params, rowsByLocation, sql_data);
   }
 
   std::vector<std::unique_ptr<ObsGroupTransformBase>> transforms = makeTransforms(
-        odcparams, queryParameters.variables, queryParameters.variableCreation);
+        odcparams, queryParameters.variableCreation, queryParameters.variables,
+        complementarityInfo.complementaryVariables());
   for (const std::unique_ptr<ObsGroupTransformBase> &transform : transforms)
     transform->transform(og);
 
-  og.vars.stitchComplementaryVariables();
+  // 8.3. Remove temporary variables, whose names start with a double underscore.
 
-  // Remove temporary variables, whose names start with a double underscore.
-  // (It would be clearer to place them in a separate group, but ObsGroup doesn't provide a method
-  // for removing a group.
-  if (og.exists("MetaData")) {
-    Group tempOdbId = og.open("MetaData");
-    const std::vector<std::string> names = tempOdbId.vars.list();
-    for (const std::string &name : names) {
-      if (eckit::StringTools::startsWith(name, "__")) {
-        og.vars.remove("MetaData/" + name);
-      }
-    }
+  for (const std::string & variablePath : og.listObjects<ObjectType::Variable>(true /*recurse*/)) {
+    const std::vector<std::string> variablePathComponents = splitPaths(variablePath);
+    if (variablePathComponents.empty())
+      continue;  // should not happen but better safe than sorry
+    const std::string &variableName = variablePathComponents.back();
+    if (eckit::StringTools::startsWith(variableName, "__"))
+      og.vars.remove(variablePath);
   }
 
   return og;

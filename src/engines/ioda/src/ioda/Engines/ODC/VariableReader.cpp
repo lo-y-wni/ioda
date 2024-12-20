@@ -7,6 +7,7 @@
 
 #include "ioda/Engines/ODC/VariableReader.h"
 #include "ioda/Engines/ODC/VariableReaderFactory.h"
+#include "ioda/Engines/ODC/OdbConstants.h"
 #include "ioda/Engines/ODC/DataFromSQL.h"
 
 namespace ioda {

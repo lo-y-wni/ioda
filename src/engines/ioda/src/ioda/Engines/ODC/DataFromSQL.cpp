@@ -12,10 +12,10 @@
 #include <fstream>
 #include <algorithm>
 
+#include "ioda/Engines/ODC/OdbConstants.h"
 #include "ioda/Engines/ODC/DataFromSQL.h"
 
 #include "odc/Select.h"
-#include "odc/api/odc.h"
 
 #include "oops/util/Duration.h"
 #include "oops/util/Logger.h"

@@ -151,3 +151,38 @@ observations:
     tolerance:
       - 1.0e-7
     variables for putget test: []
+
+- obs space:
+    name: GroundGPS
+    simulated variables: [zenithTotalDelay]
+    obsdatain:
+      engine:
+        type: ODB
+        obsfile: "testoutput/diagout-groundgps.odc"
+        mapping file: ../share/test/testinput/odb_default_name_map.yaml
+        query file: ../share/test/testinput/iodatest_odb_groundgps.yaml
+    obsdataout:
+      engine:
+        type: ODB
+        obsfile: "testoutput/diagout-groundgps-readbackin.odc"
+        mapping file: ../share/test/testinput/odb_default_name_map.yaml
+        query file: ../share/test/testinput/iodatest_odb_groundgps.yaml
+  test data:
+    gnlocs: 50
+    gnlocs outside time window: 0
+    gnlocs rejected by qc: 0
+    nlocs from source: 50
+    nrecs: 50
+    obs perturbations seed: 0
+    expected group variables: []
+    expected sort variable: ""
+    expected sort order: "ascending"
+    variables for get test:
+      - name: "stationACCombined"
+        group: "MetaData"
+        type: "string"
+        first value: "ACOR-METR"
+        last value: "ARLO-ROBQ"
+    tolerance:
+      - 1.0e-7
+    variables for putget test: []

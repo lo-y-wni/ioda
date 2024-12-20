@@ -5,9 +5,7 @@ variables:
 - name: lat
 - name: lon
 - name: numlev
-- name: site_name_1
-- name: site_name_2
-- name: site_name_3
+- name: site_name
 - name: stalt
 - name: receipt_time
 - name: receipt_date

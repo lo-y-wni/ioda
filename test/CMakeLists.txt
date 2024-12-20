@@ -494,10 +494,11 @@ if (odc_FOUND)
                     COMMAND rm
                     ARGS    "-f" "testoutput/diagout-aircraft.odc" "testoutput/diagout-atms.odc" "testoutput/diagout-gmi.odc"
                                  "testoutput/diagout-amsua.odc" "testoutput/diagout-sonde.odc" "testoutput/diagout-sonde-mixed.odc" "testoutput/diagout-aod.odc"
-                                 "testoutput/diagout-iasi.odc" "testoutput/diagout-aod-multifiles_0000.odc"
+                                 "testoutput/diagout-iasi.odc" "testoutput/diagout-groundgps.odc" "testoutput/diagout-aod-multifiles_0000.odc"
                                  "testoutput/diagout-aod-multifiles_0001.odc" "testoutput/diagout-aod-multifiles-oneiopool.odc"
                                  "testoutput/diagout-aod-singlefile-oneiopool.odc" "testoutput/diagout-aod-singlefile.odc" "testoutput/diagout-atms-readbackin.odc"
-                                 "testoutput/diagout-aircraft-readbackin.odc" "testoutput/diagout-atms-readbackin.odc" "testoutput/diagout-iasi-readbackin.odc")
+                                 "testoutput/diagout-aircraft-readbackin.odc" "testoutput/diagout-atms-readbackin.odc" "testoutput/diagout-iasi-readbackin.odc"
+                                 "testoutput/diagout-groundgps-readbackin.odc")
   ecbuild_add_test( TARGET  test_ioda_obsspace_out_odc
                     COMMAND test_ioda_obsspace
                     ARGS    "testinput/iodatest_obsspace_out_odc.yaml"
@@ -534,6 +535,10 @@ if (odc_FOUND)
   ecbuild_add_test( TARGET  test_ioda_obsspace_out_odc_compare_amsua
                     COMMAND ${CMAKE_BINARY_DIR}/bin/compare-odbs
                     ARGS    "testoutput/diagout-amsua.odc" "Data/testinput_tier_1/test_reference/diagout-amsua.odc" ${ODC_TOOL_PATH}
+                    TEST_DEPENDS get_ioda_test_data test_ioda_obsspace_out_odc )
+  ecbuild_add_test( TARGET  test_ioda_obsspace_out_odc_compare_groundgps
+                    COMMAND ${CMAKE_BINARY_DIR}/bin/compare-odbs
+                    ARGS    "testoutput/diagout-groundgps.odc" "Data/testinput_tier_1/test_reference/diagout-groundgps.odc" ${ODC_TOOL_PATH}
                     TEST_DEPENDS get_ioda_test_data test_ioda_obsspace_out_odc )
   ecbuild_add_test( TARGET  test_ioda_obsspace_out_odc_compare_sonde
                     COMMAND ${CMAKE_BINARY_DIR}/bin/compare-odbs
@@ -588,6 +593,10 @@ if (odc_FOUND)
   ecbuild_add_test( TARGET  test_ioda_obsspace_out_odc_compare_readbackin_iasi
                     COMMAND ${CMAKE_BINARY_DIR}/bin/compare-odbs
                     ARGS    "testoutput/diagout-iasi-readbackin.odc" "Data/testinput_tier_1/test_reference/diagout-iasi-readbackin.odc" ${ODC_TOOL_PATH}
+                    TEST_DEPENDS get_ioda_test_data iodatest_obsspace_out_odc_readbackin )
+  ecbuild_add_test( TARGET  test_ioda_obsspace_out_odc_compare_readbackin_groundgps
+                    COMMAND ${CMAKE_BINARY_DIR}/bin/compare-odbs
+                    ARGS    "testoutput/diagout-groundgps-readbackin.odc" "Data/testinput_tier_1/test_reference/diagout-groundgps-readbackin.odc" ${ODC_TOOL_PATH}
                     TEST_DEPENDS get_ioda_test_data iodatest_obsspace_out_odc_readbackin )
 endif()
 

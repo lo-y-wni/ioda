@@ -84,7 +84,6 @@ list(APPEND SRCS_MISC
 	include/ioda/Misc/Dimensions.h
 	include/ioda/Misc/DimensionScales.h
 	include/ioda/Misc/Eigen_Compat.h
-	include/ioda/Misc/MergeMethods.h
 	include/ioda/Misc/Options.h
 	include/ioda/Misc/StringFuncs.h
 	src/ioda/Copying.cpp
@@ -212,11 +211,15 @@ list(APPEND SRCS_ENGINES_ODC_ODC_DEPENDENT
         include/ioda/Engines/ODC/ChannelIndexer.h
         include/ioda/Engines/ODC/ChannelIndexerBase.h
         include/ioda/Engines/ODC/ChannelIndexerFactory.h
+        include/ioda/Engines/ODC/ComplementarityInfo.h
         include/ioda/Engines/ODC/DataFromSQL.h
         include/ioda/Engines/ODC/ObsGroupTransform.h
         include/ioda/Engines/ODC/ObsGroupTransformBase.h
         include/ioda/Engines/ODC/ObsGroupTransformFactory.h
+        include/ioda/Engines/ODC/OdbColumnUtils.h
+        include/ioda/Engines/ODC/OdbConstants.h
         include/ioda/Engines/ODC/OdbQueryParameters.h
+        include/ioda/Engines/ODC/ParsedColumnExpression.h
         include/ioda/Engines/ODC/RowsIntoLocationsSplitter.h
         include/ioda/Engines/ODC/RowsIntoLocationsSplitterBase.h
         include/ioda/Engines/ODC/RowsIntoLocationsSplitterFactory.h
@@ -226,10 +229,13 @@ list(APPEND SRCS_ENGINES_ODC_ODC_DEPENDENT
         include/ioda/Engines/ODC/VariableReaderFactory.h
         src/ioda/Engines/ODC/ChannelIndexer.cpp
         src/ioda/Engines/ODC/ChannelIndexerFactory.cpp
+        src/ioda/Engines/ODC/ComplementarityInfo.cpp
         src/ioda/Engines/ODC/DataFromSQL.cpp
         src/ioda/Engines/ODC/ObsGroupTransform.cpp
         src/ioda/Engines/ODC/ObsGroupTransformFactory.cpp
+        src/ioda/Engines/ODC/OdbColumnUtils.cpp
         src/ioda/Engines/ODC/OdbQueryParameters.cpp
+        src/ioda/Engines/ODC/ParsedColumnExpression.cpp
         src/ioda/Engines/ODC/RowsIntoLocationsSplitter.cpp
         src/ioda/Engines/ODC/RowsIntoLocationsSplitterFactory.cpp
         src/ioda/Engines/ODC/VariableCreator.cpp

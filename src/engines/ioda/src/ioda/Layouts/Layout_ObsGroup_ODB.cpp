@@ -50,21 +50,12 @@ DataLayoutPolicy_ObsGroup_ODB::DataLayoutPolicy_ObsGroup_ODB(
   }
 }
 
-DataLayoutPolicy::MergeMethod DataLayoutPolicy_ObsGroup_ODB::parseMergeMethod(
-    const std::string &method) {
-  if (method != "concat") {
-    throw eckit::MethodNotYetImplemented("Concatenation is the only supported merge method.");
-  }
-  return DataLayoutPolicy::MergeMethod::Concat;
-}
-
 void DataLayoutPolicy_ObsGroup_ODB::parseMappingFile(const std::string &nameMapFile) {
   eckit::PathName yamlPath = nameMapFile;
   eckit::YAMLConfiguration conf(yamlPath);
   ODBLayoutParameters mappingParams;
   mappingParams.validateAndDeserialize(conf);
   parseNameChanges(mappingParams);
-  parseComponentVariables(mappingParams);
   parseVarnoDependentColumns(mappingParams);
 }
 
@@ -79,7 +70,7 @@ void DataLayoutPolicy_ObsGroup_ODB::parseNameChanges(const ODBLayoutParameters &
 /// Add an unchanged variable to the mapping. Used to ensure that
 /// all of the fundamental variables do not falsely throw an exception.
 void DataLayoutPolicy_ObsGroup_ODB::addUnchangedVariableName(const std::string &str) {
-  if (isComplementary(str) || isMapped(str) || isMapOutput(str)) {
+  if (isMapped(str) || isMapOutput(str)) {
     throw Exception("Attempting to re-add existing variable to mapping: " + str, ioda_Here());
   }
   Mapping[str] = {str, {false, ""}};
@@ -92,34 +83,6 @@ void DataLayoutPolicy_ObsGroup_ODB::addMapping(const std::string &inputName,
     Mapping[inputName] = {outputName, {true, *unit}};
   else
     Mapping[inputName] = {outputName, {false, ""}};
-}
-
-void DataLayoutPolicy_ObsGroup_ODB::parseComponentVariables(const ODBLayoutParameters &params)
-{
-  for (ComplementaryVariablesParameters const& variable : params.complementaryVariables.value()) {
-    if (variable.outputVariableDataType.value() != "string") {
-      throw eckit::MethodNotYetImplemented("YAML mapping file: the output variable "
-                                           "data type for a derived variable is not "
-                                           "'string'");
-    }
-    MergeMethod mergeMethod = parseMergeMethod(variable.mergeMethod);
-    if (std::find(variable.inputNames.value().begin(), variable.inputNames.value().end(),
-                  variable.outputName.value()) != variable.inputNames.value().end()) {
-      throw eckit::ReadError(std::string("YAML mapping file has a complementary variable name") +
-                             std::string("matching a derived variable name."));
-    }
-    std::type_index outputTypeIndex = typeid(std::string);
-
-    std::shared_ptr<ComplementaryVariableOutputMetadata> sharedOutputMetaData(
-          new ComplementaryVariableOutputMetadata{
-            variable.outputName, outputTypeIndex, mergeMethod, 0});
-    size_t inputIndex = 0;
-    for (const std::string &input : variable.inputNames.value()) {
-      complementaryVariableDataMap[input] = std::make_pair(inputIndex, sharedOutputMetaData);
-      inputIndex++;
-    }
-    sharedOutputMetaData->inputVariableCount = inputIndex;
-  }
 }
 
 void DataLayoutPolicy_ObsGroup_ODB::parseVarnoDependentColumns(const ODBLayoutParameters &params) {
@@ -169,11 +132,6 @@ std::string DataLayoutPolicy_ObsGroup_ODB::doMap(const std::string &str) const {
   return mappedStr;
 }
 
-bool DataLayoutPolicy_ObsGroup_ODB::isComplementary(const std::string &inputVariable) const
-{
-  return (complementaryVariableDataMap.find(inputVariable) != complementaryVariableDataMap.end());
-}
-
 bool DataLayoutPolicy_ObsGroup_ODB::isMapped(const std::string &input) const {
   return (Mapping.find(input) != Mapping.end());
 }
@@ -184,51 +142,8 @@ bool DataLayoutPolicy_ObsGroup_ODB::isMapOutput(const std::string &output) const
     if (entry.second.iodaName == output)
       return true;
   }
-  for (const std::pair<const std::string, complementaryVariableMetaData> &entry :
-       complementaryVariableDataMap) {
-    if (entry.second.second->outputName == output)
-      return true;
-  }
 
   return false;
-}
-
-size_t DataLayoutPolicy_ObsGroup_ODB::getComplementaryPosition(const std::string &input) const
-{
-  if (!isComplementary(input))
-    throw eckit::ReadError(input + " was not found to be a complementary variable.");
-  return complementaryVariableDataMap.at(input).first;
-}
-
-size_t DataLayoutPolicy_ObsGroup_ODB::getInputsNeeded(const std::string &input) const
-{
-  if (!isComplementary(input))
-    throw eckit::ReadError(input + std::string(" was not found to be a complementary variable."));
-  return complementaryVariableDataMap.at(input).second->inputVariableCount;
-}
-
-std::string DataLayoutPolicy_ObsGroup_ODB::getOutputNameFromComponent(
-    const std::string &input) const
-{
-  if (!isComplementary(input))
-    throw eckit::ReadError(input + " was not found to be a complementary variable.");
-  return complementaryVariableDataMap.at(input).second->outputName;
-}
-
-std::type_index DataLayoutPolicy_ObsGroup_ODB::getOutputVariableDataType(
-    const std::string &input) const
-{
-  if (!isComplementary(input))
-    throw eckit::ReadError(input + " was not found to be a complementary variable.");
-  return complementaryVariableDataMap.at(input).second->outputVariableDataType;
-}
-
-DataLayoutPolicy::MergeMethod DataLayoutPolicy_ObsGroup_ODB::getMergeMethod(
-    const std::string &input) const
-{
-  if (!isComplementary(input))
-    throw eckit::ReadError(input + " was not found to be a complementary variable.");
-  return complementaryVariableDataMap.at(input).second->mergeMethod;
 }
 
 std::pair<bool, std::string> DataLayoutPolicy_ObsGroup_ODB::getUnit(

@@ -27,6 +27,8 @@ varno-independent columns:
     source: "seqno"
   - name: "MetaData/software_identifier"
     source: "software_identifier"
+  - name: "MetaData/stationACCombined"
+    source: "site_name"
   - name: "MetaData/timeOffset"
     source: "time_difference"
   - name: "MetaData/geoidUndulation"
@@ -45,8 +47,3 @@ varno-dependent columns:
     varno-to-variable-name mapping:
       - name: "impactParameterRO"
         varno: 162
-complementary variables:
-  - output name: "MetaData/site_name"
-    output variable data type: "string"
-    input names: ["site_name_1", "site_name_2", "site_name_3"]
-    merge method: "concat"

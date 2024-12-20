@@ -10,10 +10,14 @@
 #include "ioda/Engines/ODC/OdbQueryParameters.h"
 #include "ioda/Engines/ODC.h"
 
+#include "oops/util/parameters/ArrayConstraints.h"
 #include "oops/util/parameters/OptionalParameter.h"
 #include "oops/util/parameters/Parameter.h"
 
 namespace ioda {
+
+class Variable;
+
 namespace Engines {
 namespace ODC {
 
@@ -146,6 +150,41 @@ public:
 
 private:
   Parameters_ parameters_;
+};
+
+
+// -----------------------------------------------------------------------------
+
+/// \brief Parameters controlling the behavior of ConcatenateVariablesTransform.
+class ConcatenateVariablesTransformParameters : public ObsGroupTransformParametersBase {
+  OOPS_CONCRETE_PARAMETERS(ConcatenateVariablesTransformParameters, ObsGroupTransformParametersBase)
+public:
+  /// \brief List of variables to be concatenated. All these variables must be of type string.
+  /// The list must not be empty.
+  oops::RequiredParameter<std::vector<std::string>> sources{
+      "sources", this, {oops::nonEmptyConstraint<std::vector<std::string>>()}};
+  /// \brief Name of the destination variable that will store the concatenated strings.
+  oops::RequiredParameter<std::string> destination{"destination", this};
+};
+
+/// \brief Concatenates elements stored at the corresponding locations (and channels, if present) in
+/// multiple variables of type `string` and stores the result in a single new variable.
+class ConcatenateVariablesTransform : public ObsGroupTransformBase {
+public:
+  typedef ConcatenateVariablesTransformParameters Parameters_;
+
+  ConcatenateVariablesTransform(const Parameters_ &,
+                                const ODC_Parameters &,
+                                const OdbVariableCreationParameters &);
+
+  void transform(ObsGroup &og) const override;
+
+private:
+  /// \brief Return the vector of dimension scales to be attached to the destination variable.
+  static std::vector<Variable> destinationDimensionScales(const ObsGroup &og,
+                                                          const Variable &firstSource);
+
+  Parameters_ transformParameters_;
 };
 
 }  // namespace ODC

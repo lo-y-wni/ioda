@@ -106,22 +106,6 @@ OOPS_CONCRETE_PARAMETERS(VariableParameters, Parameters)
   oops::Parameter<IoMode> mode{"mode", IoMode::READ_AND_WRITE, this};
 };
 
-class ComplementaryVariablesParameters : public oops::Parameters {
-OOPS_CONCRETE_PARAMETERS(ComplementaryVariablesParameters, Parameters)
- public:
-  /// \p outputName is the variable's name as it should be found in IODA. The full group
-  /// hierarchy should be included.
-  oops::RequiredParameter<std::string> outputName {"output name", this};
-  /// \p outputVariableDataType is the output variable's data type. Strings are currently
-  /// the only supported type.
-  oops::Parameter<std::string> outputVariableDataType {
-    "output variable data type", "string", this};
-  /// \p inputNames are the variable names as they should be found prior to the merge.
-  oops::RequiredParameter<std::vector<std::string>> inputNames {"input names", this};
-  /// \p mergeMethod is the method which should be used to combine the input variables.
-  oops::Parameter<std::string> mergeMethod {"merge method", "concat", this};
-};
-
 /// Maps a varno to an ioda variable name (without group).
 class VarnoToVariableNameMappingParameters : public oops::Parameters {
 OOPS_CONCRETE_PARAMETERS(VarnoToVariableNameMappingParameters, Parameters)
@@ -162,8 +146,6 @@ class ODBLayoutParameters : public oops::Parameters {
 OOPS_CONCRETE_PARAMETERS(ODBLayoutParameters, Parameters)
  public:
   oops::Parameter<std::vector<VariableParameters>> variables {"varno-independent columns", {}, this};
-  oops::Parameter<std::vector<ComplementaryVariablesParameters>> complementaryVariables {
-    "complementary variables", {}, this};
   oops::Parameter<std::vector<VarnoDependentColumnParameters>> varnoDependentColumns {
     "varno-dependent columns", {}, this};
 };

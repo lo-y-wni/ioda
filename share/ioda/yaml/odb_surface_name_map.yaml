@@ -13,6 +13,8 @@ varno-independent columns:
     source: "ops_subtype"
   - name: "MetaData/pressureSensorAltitude"
     source: "pressure_sensor_alt"
+  - name: "MetaData/stationACCombined"
+    source: "site_name"
   - name: "MetaData/stationElevation"
     source: "stalt"
   - name: "MetaData/stationIdentification"
@@ -58,8 +60,3 @@ varno-dependent columns:
   - source: "obs_error"
     group name: "ObsError"
     varno-to-variable-name mapping: *obsvalue_varnos
-complementary variables:
-  - output name: "MetaData/site_name"
-    output variable data type: "string"
-    input names: ["site_name_1", "site_name_2", "site_name_3"]
-    merge method: "concat"

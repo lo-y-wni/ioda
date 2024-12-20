@@ -20,31 +20,12 @@
 #include "ioda/defs.h"
 #include "ioda/ObsGroup.h"
 
-#include "oops/util/DateTime.h"
-#include "oops/util/missingValues.h"
 
 #include "unsupported/Eigen/CXX11/Tensor"
 
 namespace ioda {
 namespace Engines {
 namespace ODC {
-  static constexpr int odb_type_int      = 1;
-  static constexpr int odb_type_real     = 2;
-  static constexpr int odb_type_string   = 3;
-  static constexpr int odb_type_bitfield = 4;
-
-  static constexpr float odb_missing_float = -2147483648.0f;
-  static constexpr int odb_missing_int = 2147483647;
-  static constexpr char* odb_missing_string = const_cast<char *>("MISSING*");
-
-  template <class T>
-  T odb_missing();
-  template <>
-  inline float odb_missing<float>() { return odb_missing_float; }
-  template <>
-  inline int odb_missing<int>() { return odb_missing_int; }
-  template <>
-  inline std::string odb_missing<std::string>() { return odb_missing_string; }
 
 class DataFromSQL {
 private:
