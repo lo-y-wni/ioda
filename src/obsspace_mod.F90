@@ -8,7 +8,7 @@
 
 module obsspace_mod
 
-   use, intrinsic :: iso_c_binding
+   use, intrinsic :: iso_c_binding, f_c_string_f2023 => f_c_string
    use kinds
    use string_f_c_mod
    use datetime_mod
